@@ -1,0 +1,56 @@
+* text=auto
+* eol=lf
+*.bmp binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.exe binary
+*.dll binary
+*.bin binary
+*.jar binary
+*.zip binary
+*.7z binary
+*.slo binary
+*.lo binary
+*.o binary
+*.obj binary
+*.gch binary
+*.pch binary
+*.so binary
+*.dylib binary
+*.dll binary
+*.lai binary
+*.la binary
+*.a binary
+*.lib binary
+*.exe binary
+*.out binary
+*.app binary
+*.bat eol=crlf
+*.cmd eol=crlf
+*.doc binary diff=exif
+*.docx binary diff=docx
+*.dot binary diff=exif
+*.dotx binary diff=exif
+*.xls binary diff=exif
+*.xlsx binary diff=exif
+*.xlt binary diff=exif
+*.xltm binary diff=exif
+*.odb binary diff=exif
+*.odf binary diff=exif
+*.odg binary diff=exif
+*.odi binary diff=exif
+*.odp binary diff=exif
+*.ods binary diff=exif
+*.odt binary diff=odt
+*.otc binary diff=exif
+*.otg binary diff=exif
+*.oti binary diff=exif
+*.otp binary diff=exif
+*.ots binary diff=exif
+*.ott binary diff=exif
+*.pdf binary diff=exif
+*.ppt binary diff=exif
+*.pptx binary diff=exif
+*.ps binary diff=exif
