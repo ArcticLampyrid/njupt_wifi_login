@@ -74,6 +74,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
     let my_config = settings.try_deserialize::<MyConfig>()?;
     let on_network_connectivity_hint_changed = |connectivity_hint: NL_NETWORK_CONNECTIVITY_HINT| {
+        info!("ConnectivityLevel = {}", connectivity_hint.ConnectivityLevel.0);
         if connectivity_hint.ConnectivityLevel
             == NetworkConnectivityLevelHintConstrainedInternetAccess
             || connectivity_hint.ConnectivityLevel == NetworkConnectivityLevelHintLocalAccess
