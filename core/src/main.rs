@@ -181,7 +181,7 @@ async fn send_login_request(
     if resp.status().is_success() && resp.text().await?.contains("成功") {
         return Ok(());
     }
-    if reqwest::get(URL_GENERATE_204).await?.status() == reqwest::StatusCode::NO_CONTENT {
+    if client.get(URL_GENERATE_204).send().await?.status() == reqwest::StatusCode::NO_CONTENT {
         // Fallback
         return Ok(());
     }
