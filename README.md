@@ -5,6 +5,13 @@ A tool to help NJUPTer to connect the campus network conveniently.
 It will listen for the network changed notifications and automatically do the authentication.
 
 ## How to use it?
+### Use Configurator
+*Configurator is available in v0.1.1 and afterwards.*
+1. Download the binaries or build from the source on your own.
+2. Open `njupt_wifi_login_configurator`, write down your account and click Save button.
+3. Reboot your computer
+
+### Manually configure
 1. Download the binaries or build from the source on your own.
 2. Write down your userid and password into the configuration file (eg. `njupt_wifi.yml`).
    ```yaml
