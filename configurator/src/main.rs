@@ -1,49 +1,45 @@
 #![windows_subsystem = "windows"]
 
-#[macro_use]
-extern crate lazy_static;
 use auto_launch::{AutoLaunch, AutoLaunchBuilder};
 use druid::widget::{
     Align, Button, Checkbox, CrossAxisAlignment, Flex, FlexParams, Label, RadioGroup, TextBox,
 };
 use druid::{AppLauncher, Data, Lens, Widget, WidgetExt, WindowDesc};
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::error::Error;
 use std::ffi::OsString;
 use std::path::PathBuf;
 const WINDOW_TITLE: &str = "NJUPT WiFi Login Configurator";
-
-lazy_static! {
-    static ref AUTO_LAUNCH: AutoLaunch = {
-        let mut path = env::current_exe().unwrap();
-        match path.extension() {
-            Some(ext) => {
-                let mut file_name = OsString::new();
-                file_name.push("njupt_wifi_login.");
-                file_name.push(ext);
-                path.pop();
-                path.push(file_name)
-            }
-            None => {
-                path.pop();
-                path.push("njupt_wifi_login")
-            }
+static AUTO_LAUNCH: Lazy<AutoLaunch> = Lazy::new(|| {
+    let mut path = env::current_exe().unwrap();
+    match path.extension() {
+        Some(ext) => {
+            let mut file_name = OsString::new();
+            file_name.push("njupt_wifi_login.");
+            file_name.push(ext);
+            path.pop();
+            path.push(file_name)
         }
-        AutoLaunchBuilder::new()
-            .set_app_name("njupt_wifi_login")
-            .set_app_path(path.to_string_lossy().as_ref())
-            .set_use_launch_agent(true)
-            .build()
-            .unwrap()
-    };
-    static ref CONFIG_PATH: PathBuf = {
-        let mut path = env::current_exe().unwrap();
-        path.pop();
-        path.push("njupt_wifi.yml");
-        path
-    };
-}
+        None => {
+            path.pop();
+            path.push("njupt_wifi_login")
+        }
+    }
+    AutoLaunchBuilder::new()
+        .set_app_name("njupt_wifi_login")
+        .set_app_path(path.to_string_lossy().as_ref())
+        .set_use_launch_agent(true)
+        .build()
+        .unwrap()
+});
+static CONFIG_PATH: Lazy<PathBuf> = Lazy::new(|| {
+    let mut path = env::current_exe().unwrap();
+    path.pop();
+    path.push("njupt_wifi.yml");
+    path
+});
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MyConfig {
