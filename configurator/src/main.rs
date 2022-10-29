@@ -78,7 +78,7 @@ fn write_my_config(d: &MyConfig) -> Result<(), Box<dyn Error>> {
 
 fn main() {
     // describe the main window
-    let main_window = WindowDesc::new(build_root_widget)
+    let main_window = WindowDesc::new(build_root_widget())
         .title(WINDOW_TITLE)
         .with_min_size((400.0, 320.0))
         .window_size((400.0, 320.0));
@@ -104,7 +104,7 @@ fn main() {
 
 fn build_root_widget() -> impl Widget<ConfiguratorState> {
     let isp_label = Label::new("ISP").fix_width(100.0);
-    let isp_radio_group = RadioGroup::new(vec![
+    let isp_radio_group = RadioGroup::column(vec![
         ("EDU", IspType::EDU),
         ("CMCC", IspType::CMCC),
         ("CT", IspType::CT),
