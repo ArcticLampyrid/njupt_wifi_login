@@ -2,15 +2,17 @@
 
 mod win32_network_connectivity_hint_changed;
 
-use config::Config;
 use log::*;
 use log4rs::{
     append::file::FileAppender,
     config::{Appender, Root},
     encode::pattern::PatternEncoder,
 };
+use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::env;
+use std::path::PathBuf;
 use thiserror::Error;
 use tokio::sync::mpsc;
 use win32_network_connectivity_hint_changed::NetworkConnectivityHintChangedHandle;
@@ -18,6 +20,18 @@ use windows::Win32::Networking::WinSock::{
     NetworkConnectivityLevelHintConstrainedInternetAccess, NetworkConnectivityLevelHintLocalAccess,
     NL_NETWORK_CONNECTIVITY_HINT,
 };
+static CONFIG_PATH: Lazy<PathBuf> = Lazy::new(|| {
+    let mut path = env::current_exe().unwrap();
+    path.pop();
+    path.push("njupt_wifi.yml");
+    path
+});
+static LOG_PATH: Lazy<PathBuf> = Lazy::new(|| {
+    let mut path = env::current_exe().unwrap();
+    path.pop();
+    path.push("njupt_wifi.log");
+    path
+});
 
 const URL_GENERATE_204: &str = "http://connect.rom.miui.com/generate_204";
 
@@ -50,11 +64,17 @@ pub enum ActionInfo {
     Login(),
 }
 
+fn read_my_config() -> Result<MyConfig, Box<dyn std::error::Error>> {
+    let f = std::fs::File::open(CONFIG_PATH.as_path())?;
+    let config: MyConfig = serde_yaml::from_reader(f)?;
+    Ok(config)
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file_log = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{d} - {m}{n}")))
-        .build("njupt_wifi.log")
+        .build(LOG_PATH.as_path())
         .unwrap();
 
     let log_config = log4rs::Config::builder()
@@ -69,12 +89,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = log4rs::init_config(log_config).unwrap();
 
     let (tx, mut rx) = mpsc::unbounded_channel::<ActionInfo>();
-    let settings = Config::builder()
-        .add_source(config::File::with_name("njupt_wifi"))
-        .build()?;
-    let my_config = settings.try_deserialize::<MyConfig>()?;
+    let my_config = read_my_config().unwrap_or_else(|error| {
+        error!("Failed to read config: {}", error);
+        panic!("{}", error)
+    });
     let on_network_connectivity_hint_changed = |connectivity_hint: NL_NETWORK_CONNECTIVITY_HINT| {
-        info!("ConnectivityLevel = {}", connectivity_hint.ConnectivityLevel.0);
+        info!(
+            "ConnectivityLevel = {}",
+            connectivity_hint.ConnectivityLevel.0
+        );
         if connectivity_hint.ConnectivityLevel
             == NetworkConnectivityLevelHintConstrainedInternetAccess
             || connectivity_hint.ConnectivityLevel == NetworkConnectivityLevelHintLocalAccess
