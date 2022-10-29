@@ -104,7 +104,7 @@ fn main() {
 
 fn build_root_widget() -> impl Widget<ConfiguratorState> {
     let isp_label = Label::new("ISP").fix_width(100.0);
-    let isp_radio_group = RadioGroup::column(vec![
+    let isp_radio_group = RadioGroup::row(vec![
         ("EDU", IspType::EDU),
         ("CMCC", IspType::CMCC),
         ("CT", IspType::CT),
