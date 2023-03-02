@@ -24,12 +24,14 @@ It will listen for the network changed notifications and automatically do the au
 ## Requirements
 Currently it's Windows-only since the author doesn't use Linux in desktop environments. 
 
-For those who may be interested in Linux support, try to use `NETLINK_ROUTE` to implement the listerner. The cargo package [`rtnetlink`](https://github.com/little-dude/netlink/tree/master/rtnetlink) may be helpful. 
+For those who may be interested in Linux support, try to use `NETLINK_ROUTE` to implement the listener. The cargo package [`rtnetlink`](https://github.com/little-dude/netlink/tree/master/rtnetlink) may be helpful. 
 
 PRs for narrowing the limitation is welcome.
 
 ## Remarks
-It will use no proxy during the authentication for the proxy may be not available until the network is logined.
+It will use no proxy during the authentication for the proxy may be not available until the network is logged in.
+
+It will use Google DNS Servers (in the white list of the firewall) internally to avoid dns not available during authentication.
 
 We write it meticulously with Rust, thus you are mostly not needed to worry about the cost of performance.
 
