@@ -1,7 +1,9 @@
 #![windows_subsystem = "windows"]
 
+mod dns_resolver;
 mod win32_network_connectivity_hint_changed;
 
+use dns_resolver::CustomTrustDnsResolver;
 use log::*;
 use log4rs::{
     append::file::FileAppender,
@@ -11,10 +13,11 @@ use log4rs::{
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::env;
 use std::path::PathBuf;
+use std::{env, sync::Arc};
 use thiserror::Error;
 use tokio::sync::mpsc;
+use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 use win32_network_connectivity_hint_changed::NetworkConnectivityHintChangedHandle;
 use windows::Win32::Networking::WinSock::{
     NetworkConnectivityLevelHintConstrainedInternetAccess, NetworkConnectivityLevelHintLocalAccess,
@@ -31,6 +34,11 @@ static LOG_PATH: Lazy<PathBuf> = Lazy::new(|| {
     path.pop();
     path.push("njupt_wifi.log");
     path
+});
+static DNS_RESOLVER: Lazy<Arc<CustomTrustDnsResolver>> = Lazy::new(|| {
+    Arc::new(
+        CustomTrustDnsResolver::new(ResolverConfig::google(), ResolverOpts::default()).unwrap(),
+    )
 });
 
 const URL_GENERATE_204: &str = "http://connect.rom.miui.com/generate_204";
@@ -144,7 +152,10 @@ async fn login_wifi(isp: IspType, userid: &str, password: &str) -> Result<(), Wi
     let dormitory_pattern: regex::Regex =
         Regex::new("ip=(.*?)&wlanacip=(.*?)&wlanacname=(.*?)\"").unwrap();
     let library_pattern: regex::Regex = Regex::new("UserIP=(.*?)&wlanacname=(.*?)&(.*?)=").unwrap();
-    let client = reqwest::Client::builder().no_proxy().build()?;
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .dns_resolver(DNS_RESOLVER.clone())
+        .build()?;
     let login_page = client.get(URL_GENERATE_204).send().await?;
     match login_page.status() {
         reqwest::StatusCode::NO_CONTENT => {
@@ -199,7 +210,10 @@ async fn send_login_request(
         ("DDDDD", userid),
         ("upass", password),
     ];
-    let client = reqwest::Client::builder().no_proxy().build()?;
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .dns_resolver(DNS_RESOLVER.clone())
+        .build()?;
     let resp = client.post(url).form(&params).send().await?;
     if resp.status().is_success() && resp.text().await?.contains("成功") {
         return Ok(());
