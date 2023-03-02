@@ -1243,7 +1243,7 @@ dependencies = [
 
 [[package]]
 name = "njupt_wifi_login"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "hyper",
  "log",
@@ -1261,7 +1261,7 @@ dependencies = [
 
 [[package]]
 name = "njupt_wifi_login_configurator"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "auto-launch",
  "druid",
