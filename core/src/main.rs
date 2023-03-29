@@ -2,6 +2,8 @@
 
 mod dns_resolver;
 mod win32_network_connectivity_hint_changed;
+mod login;
+mod network_changed_event;
 
 use dns_resolver::CustomTrustDnsResolver;
 use log::*;
