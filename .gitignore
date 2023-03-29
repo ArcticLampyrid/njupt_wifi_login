@@ -2,3 +2,6 @@
 njupt_wifi.*
 
 /target
+
+# Visual Studio Code
+.vscode
