@@ -6,6 +6,7 @@ use regex::Regex;
 use serde::Deserialize;
 use thiserror::Error;
 
+use crate::Credential;
 use crate::IspType;
 
 const URL_BASE: &str = "http://10.10.244.11";
@@ -33,7 +34,7 @@ struct CheckStatusResult {
 }
 
 #[derive(Error, Debug)]
-pub enum WifiLoginError {
+pub enum LoginError {
     #[error("network disconnected")]
     Disconnect(),
     #[error("http request failed: {0}")]
@@ -48,7 +49,7 @@ pub enum WifiLoginError {
     DeserializeFailed(#[from] serde_json::Error),
 }
 
-async fn fetch_ip(client: &reqwest::Client) -> Result<Option<Ipv4Addr>, WifiLoginError> {
+async fn fetch_ip(client: &reqwest::Client) -> Result<Option<Ipv4Addr>, LoginError> {
     let text = client
         .get(URL_FETCH_IP)
         .send()
@@ -68,7 +69,7 @@ async fn check_status(
     client: &reqwest::Client,
     ip: &Ipv4Addr,
     account: &String,
-) -> Result<bool, WifiLoginError> {
+) -> Result<bool, LoginError> {
     let text = client
         .get(URL_CHECK_STATUS.replacen("{}", ip.to_string().as_str(), 1))
         .send()
@@ -84,7 +85,7 @@ async fn check_status(
     )?;
     match result.account {
         Some(account_) if &account_ == account => Ok(true),
-        Some(account_) => Err(WifiLoginError::AlreadyLogin(account_)),
+        Some(account_) => Err(LoginError::AlreadyLogin(account_)),
         None => Ok(false),
     }
 }
@@ -97,29 +98,28 @@ fn derive_account(userid: &String, isp: IspType) -> String {
     }
 }
 
-async fn login(
-    client: &reqwest::Client,
-    userid: &String,
-    isp: IspType,
-    password: &String,
-) -> Result<(), WifiLoginError> {
-    let ip = fetch_ip(client)
-        .await?
-        .ok_or(WifiLoginError::FetchIpFailed())?;
-    let account = derive_account(&userid, isp);
+pub async fn login(client: &reqwest::Client, config: &Credential) -> Result<(), LoginError> {
+    println!("login!!");
+    let ip = fetch_ip(client).await?.ok_or(LoginError::FetchIpFailed())?;
+    let account = derive_account(&config.userid, config.isp);
     if check_status(client, &ip, &account).await? {
+        println!("already login");
         return Ok(());
     }
+    println!("logging in!!");
     client
         .post(URL_LOGIN.replacen("{}", ip.to_string().as_str(), 1))
-        .form(&[("DDDDD", &account), ("upass", password)])
+        .form(&[("DDDDD", &account), ("upass", &config.password)])
         .send()
         .await?
         .text()
         .await?;
+    println!("logging in done!!");
     if check_status(client, &ip, &account).await? {
+        println!("logged in!!");
         Ok(())
     } else {
-        Err(WifiLoginError::AuthenticationFailed())
+        println!("failed to log in!!");
+        Err(LoginError::AuthenticationFailed())
     }
 }
