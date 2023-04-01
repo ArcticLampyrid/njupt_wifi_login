@@ -22,15 +22,7 @@ const URL_LOGIN: &str = concatcp!(
 );
 
 lazy_static! {
-    static ref RE_FETCH_IP: Regex = Regex::new("v4serip='(.*?)'").unwrap();
-}
-
-#[derive(Deserialize)]
-struct CheckStatusResult {
-    result: String,
-    #[serde(rename = "msg")]
-    message: String,
-    account: Option<String>,
+    static ref RE_FETCH_IP: Regex = Regex::new("ss5=\"(.*?)\"").unwrap();
 }
 
 #[derive(Error, Debug)]
@@ -43,8 +35,6 @@ pub enum LoginError {
     AuthenticationFailed(),
     #[error("fetch ip failed")]
     FetchIpFailed(),
-    #[error("already login with another account: {0}")]
-    AlreadyLogin(String),
     #[error("deserialize failed")]
     DeserializeFailed(#[from] serde_json::Error),
 }
@@ -57,26 +47,43 @@ async fn fetch_ip(client: &reqwest::Client) -> Result<Option<Ipv4Addr>, LoginErr
         .text_with_charset("GBK")
         .await?;
     match (*RE_FETCH_IP).captures(text.as_str()) {
-        Some(caps) => match caps.get(0) {
-            Some(mat) => Ok(mat.as_str().parse().ok()),
+        Some(caps) => match caps.get(1) {
+            Some(mat) => {
+                println!("ip!! = {}", mat.as_str());
+                Ok(mat.as_str().parse().ok())
+            }
             None => Ok(None),
         },
         None => Ok(None),
     }
 }
 
+#[derive(Deserialize)]
+struct CheckStatusResponse {
+    result: String,
+    #[serde(rename = "msg")]
+    message: String,
+    account: Option<String>,
+}
+
+enum LoginStatus {
+    Online,
+    OnlineWithAnotherAccount,
+    Offline,
+}
+
 async fn check_status(
     client: &reqwest::Client,
     ip: &Ipv4Addr,
     account: &String,
-) -> Result<bool, LoginError> {
+) -> Result<LoginStatus, LoginError> {
     let text = client
         .get(URL_CHECK_STATUS.replacen("{}", ip.to_string().as_str(), 1))
         .send()
         .await?
         .text()
         .await?;
-    let result: CheckStatusResult = serde_json::from_str(
+    let result: CheckStatusResponse = serde_json::from_str(
         text.chars()
             .skip(2)
             .take(text.chars().count() - 3)
@@ -84,9 +91,9 @@ async fn check_status(
             .as_str(),
     )?;
     match result.account {
-        Some(account_) if &account_ == account => Ok(true),
-        Some(account_) => Err(LoginError::AlreadyLogin(account_)),
-        None => Ok(false),
+        Some(account_) if &account_ == account => Ok(LoginStatus::Online),
+        Some(account_) => Ok(LoginStatus::OnlineWithAnotherAccount),
+        None => Ok(LoginStatus::Offline),
     }
 }
 
@@ -102,24 +109,35 @@ pub async fn login(client: &reqwest::Client, config: &Credential) -> Result<(), 
     println!("login!!");
     let ip = fetch_ip(client).await?.ok_or(LoginError::FetchIpFailed())?;
     let account = derive_account(&config.userid, config.isp);
-    if check_status(client, &ip, &account).await? {
-        println!("already login");
-        return Ok(());
+    match check_status(client, &ip, &account).await? {
+        LoginStatus::Online => {
+            println!("already logged in!!");
+            return Ok(());
+        }
+        LoginStatus::OnlineWithAnotherAccount => {
+            println!("already logged in with another account!!");
+            return Ok(());
+        }
+        LoginStatus::Offline => {}
     }
-    println!("logging in!!");
     client
         .post(URL_LOGIN.replacen("{}", ip.to_string().as_str(), 1))
         .form(&[("DDDDD", &account), ("upass", &config.password)])
         .send()
-        .await?
-        .text()
         .await?;
     println!("logging in done!!");
-    if check_status(client, &ip, &account).await? {
-        println!("logged in!!");
-        Ok(())
-    } else {
-        println!("failed to log in!!");
-        Err(LoginError::AuthenticationFailed())
+    match check_status(client, &ip, &account).await? {
+        LoginStatus::Online => {
+            println!("logged in!!");
+            Ok(())
+        }
+        LoginStatus::OnlineWithAnotherAccount => {
+            println!("logged in with another account??");
+            Ok(())
+        }
+        LoginStatus::Offline => {
+            println!("failed to log in!!");
+            Err(LoginError::AuthenticationFailed())
+        }
     }
 }

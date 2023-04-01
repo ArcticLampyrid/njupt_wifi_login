@@ -11,8 +11,10 @@ use log4rs::{
     encode::pattern::PatternEncoder,
 };
 use once_cell::sync::Lazy;
+use reqwest::redirect::Policy;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use tokio::time::sleep;
+use std::{path::PathBuf, time::Instant};
 use std::{env, time::Duration};
 
 use login::login;
@@ -31,7 +33,8 @@ static LOG_PATH: Lazy<PathBuf> = Lazy::new(|| {
     path
 });
 
-const TIMEOUT: Duration = Duration::from_secs(1);
+const TIMEOUT_DURATION: Duration = Duration::from_secs(5);
+const DEBOUNCE_DURATION: Duration = Duration::from_secs(3);
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Credential {
@@ -82,15 +85,22 @@ async fn main() -> Result<(), Error> {
 
     let client = reqwest::Client::builder()
         .no_proxy()
-        .timeout(TIMEOUT)
-        .connect_timeout(TIMEOUT)
+        .timeout(TIMEOUT_DURATION)
+        .connect_timeout(TIMEOUT_DURATION)
+        .redirect(Policy::none())
         .build()?;
+    let mut debounce_begin = Instant::now() - DEBOUNCE_DURATION;
     while let Some(()) = rx.recv().await {
+        if debounce_begin.elapsed() < DEBOUNCE_DURATION {
+            continue;
+        }
+        sleep(DEBOUNCE_DURATION).await;
         info!("Start to login");
         match login(&client, &credential).await {
             Ok(_) => info!("Connected"),
             Err(err) => error!("Failed to connect: {}", err),
         };
+        debounce_begin = Instant::now();
     }
     Ok(())
 }
