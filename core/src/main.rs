@@ -79,8 +79,7 @@ async fn main() -> Result<(), Error> {
         panic!("{}", error)
     });
 
-    let listener = NetworkChangedListener::new()?;
-    let mut rx = listener.listen()?;
+    let (_listener, mut rx) = NetworkChangedListener::listen()?;
     info!("Network connectivity hint changed notification registered");
 
     let client = reqwest::Client::builder()

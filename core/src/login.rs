@@ -27,8 +27,6 @@ lazy_static! {
 
 #[derive(Error, Debug)]
 pub enum LoginError {
-    #[error("network disconnected")]
-    Disconnect(),
     #[error("http request failed: {0}")]
     HttpRequestFailed(#[from] reqwest::Error),
     #[error("authentication failed")]
@@ -60,9 +58,10 @@ async fn fetch_ip(client: &reqwest::Client) -> Result<Option<Ipv4Addr>, LoginErr
 
 #[derive(Deserialize)]
 struct CheckStatusResponse {
-    result: String,
+    #[serde(rename = "result")]
+    _result: String,
     #[serde(rename = "msg")]
-    message: String,
+    _message: String,
     account: Option<String>,
 }
 
@@ -92,7 +91,7 @@ async fn check_status(
     )?;
     match result.account {
         Some(account_) if &account_ == account => Ok(LoginStatus::Online),
-        Some(account_) => Ok(LoginStatus::OnlineWithAnotherAccount),
+        Some(_) => Ok(LoginStatus::OnlineWithAnotherAccount),
         None => Ok(LoginStatus::Offline),
     }
 }
