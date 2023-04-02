@@ -39,10 +39,7 @@ impl NetworkChangedListener {
         connectivityhint: NL_NETWORK_CONNECTIVITY_HINT,
     ) {
         let connectivity_level = connectivityhint.ConnectivityLevel;
-        // info!(
-        //     "ConnectivityLevel = {}",
-        //     connectivity_level.0
-        // );
+        trace!(connectivity_level = connectivity_level.0);
 
         #[allow(non_upper_case_globals)]
         if let NetworkConnectivityLevelHintConstrainedInternetAccess

@@ -4,18 +4,13 @@ mod login;
 mod network_changed;
 
 use anyhow::Error;
-use log::*;
-use log4rs::{
-    append::file::FileAppender,
-    config::{Appender, Root},
-    encode::pattern::PatternEncoder,
-};
 use once_cell::sync::Lazy;
 use reqwest::redirect::Policy;
 use serde::{Deserialize, Serialize};
-use tokio::time::sleep;
-use std::{path::PathBuf, time::Instant};
 use std::{env, time::Duration};
+use std::{path::PathBuf, time::Instant};
+use tracing::{error, info, subscriber, trace, Level};
+use tracing_subscriber::{fmt, prelude::*, FmtSubscriber};
 
 use login::login;
 use network_changed::NetworkChangedListener;
@@ -26,15 +21,16 @@ static CONFIG_PATH: Lazy<PathBuf> = Lazy::new(|| {
     path.push("njupt_wifi.yml");
     path
 });
-static LOG_PATH: Lazy<PathBuf> = Lazy::new(|| {
+static LOG_DIRECTORY: Lazy<PathBuf> = Lazy::new(|| {
     let mut path = env::current_exe().unwrap();
     path.pop();
-    path.push("njupt_wifi.log");
+    path.push("logs");
     path
 });
+static LOG_FILENAME: &str = "njupt_wifi.log";
 
-const TIMEOUT_DURATION: Duration = Duration::from_secs(5);
-const DEBOUNCE_DURATION: Duration = Duration::from_secs(3);
+const TIMEOUT_DURATION: Duration = Duration::from_secs(1);
+const DEBOUNCE_DURATION: Duration = Duration::from_secs(1);
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Credential {
@@ -58,29 +54,30 @@ fn read_config() -> Result<Credential, Error> {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    let file_log = FileAppender::builder()
-        .encoder(Box::new(PatternEncoder::new("{d} - {m}{n}")))
-        .build(LOG_PATH.as_path())
-        .unwrap();
+    let file_appender = tracing_appender::rolling::daily(LOG_DIRECTORY.as_path(), LOG_FILENAME);
+    let (file_writer, _guard) = tracing_appender::non_blocking(file_appender);
+    subscriber::set_global_default(
+        FmtSubscriber::builder()
+            .with_max_level(if cfg!(debug_assertions) {
+                Level::TRACE
+            } else {
+                Level::INFO
+            })
+            .finish()
+            .with(
+                fmt::Layer::default()
+                    .with_ansi(false)
+                    .with_writer(file_writer),
+            ),
+    )?;
 
-    let log_config = log4rs::Config::builder()
-        .appender(Appender::builder().build("file_log", Box::new(file_log)))
-        .build(
-            Root::builder()
-                .appender("file_log")
-                .build(LevelFilter::Trace),
-        )
-        .unwrap();
-
-    let _ = log4rs::init_config(log_config).unwrap();
-
-    let credential = read_config().unwrap_or_else(|error| {
+    let credential = read_config().map_err(|error| {
         error!("Failed to read config: {}", error);
-        panic!("{}", error)
-    });
+        error
+    })?;
 
     let (_listener, mut rx) = NetworkChangedListener::listen()?;
-    info!("Network connectivity hint changed notification registered");
+    info!("Start to listen to network change");
 
     let client = reqwest::Client::builder()
         .no_proxy()
@@ -91,9 +88,9 @@ async fn main() -> Result<(), Error> {
     let mut debounce_begin = Instant::now() - DEBOUNCE_DURATION;
     while let Some(()) = rx.recv().await {
         if debounce_begin.elapsed() < DEBOUNCE_DURATION {
+            trace!("Debounced");
             continue;
         }
-        sleep(DEBOUNCE_DURATION).await;
         info!("Start to login");
         match login(&client, &credential).await {
             Ok(_) => info!("Connected"),

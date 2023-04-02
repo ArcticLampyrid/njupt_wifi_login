@@ -1,10 +1,12 @@
 use std::net::Ipv4Addr;
 
 use const_format::concatcp;
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::Deserialize;
 use thiserror::Error;
+use tracing::info;
+use tracing::trace;
 
 use crate::Credential;
 use crate::IspType;
@@ -21,9 +23,7 @@ const URL_LOGIN: &str = concatcp!(
     "/eportal/?c=ACSetting&a=Login&wlanuserip={}&wlanacip=10.255.252.150"
 );
 
-lazy_static! {
-    static ref RE_FETCH_IP: Regex = Regex::new("ss5=\"(.*?)\"").unwrap();
-}
+static RE_FETCH_IP: Lazy<Regex> = Lazy::new(|| Regex::new("ss5=\"(.*?)\"").unwrap());
 
 #[derive(Error, Debug)]
 pub enum LoginError {
@@ -37,26 +37,30 @@ pub enum LoginError {
     DeserializeFailed(#[from] serde_json::Error),
 }
 
-async fn fetch_ip(client: &reqwest::Client) -> Result<Option<Ipv4Addr>, LoginError> {
+async fn fetch_ip(client: &reqwest::Client) -> Result<Ipv4Addr, LoginError> {
     let text = client
         .get(URL_FETCH_IP)
         .send()
         .await?
         .text_with_charset("GBK")
         .await?;
-    match (*RE_FETCH_IP).captures(text.as_str()) {
-        Some(caps) => match caps.get(1) {
-            Some(mat) => {
-                println!("ip!! = {}", mat.as_str());
-                Ok(mat.as_str().parse().ok())
-            }
-            None => Ok(None),
-        },
-        None => Ok(None),
+    match RE_FETCH_IP
+        .captures(text.as_str())
+        .ok_or(LoginError::FetchIpFailed())?
+        .get(1)
+        .ok_or(LoginError::FetchIpFailed())?
+        .as_str()
+        .parse::<Ipv4Addr>()
+    {
+        Ok(ip) => {
+            trace!(?ip);
+            Ok(ip)
+        }
+        Err(_) => Err(LoginError::FetchIpFailed()),
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct CheckStatusResponse {
     #[serde(rename = "result")]
     _result: String,
@@ -89,6 +93,7 @@ async fn check_status(
             .collect::<String>()
             .as_str(),
     )?;
+    trace!(?result);
     match result.account {
         Some(account_) if &account_ == account => Ok(LoginStatus::Online),
         Some(_) => Ok(LoginStatus::OnlineWithAnotherAccount),
@@ -105,16 +110,15 @@ fn derive_account(userid: &String, isp: IspType) -> String {
 }
 
 pub async fn login(client: &reqwest::Client, config: &Credential) -> Result<(), LoginError> {
-    println!("login!!");
-    let ip = fetch_ip(client).await?.ok_or(LoginError::FetchIpFailed())?;
+    let ip = fetch_ip(client).await?;
     let account = derive_account(&config.userid, config.isp);
     match check_status(client, &ip, &account).await? {
         LoginStatus::Online => {
-            println!("already logged in!!");
+            info!("Already logged in");
             return Ok(());
         }
         LoginStatus::OnlineWithAnotherAccount => {
-            println!("already logged in with another account!!");
+            info!("Already logged in with another account");
             return Ok(());
         }
         LoginStatus::Offline => {}
@@ -124,19 +128,9 @@ pub async fn login(client: &reqwest::Client, config: &Credential) -> Result<(), 
         .form(&[("DDDDD", &account), ("upass", &config.password)])
         .send()
         .await?;
-    println!("logging in done!!");
     match check_status(client, &ip, &account).await? {
-        LoginStatus::Online => {
-            println!("logged in!!");
-            Ok(())
-        }
-        LoginStatus::OnlineWithAnotherAccount => {
-            println!("logged in with another account??");
-            Ok(())
-        }
-        LoginStatus::Offline => {
-            println!("failed to log in!!");
-            Err(LoginError::AuthenticationFailed())
-        }
+        LoginStatus::Online => Ok(()),
+        LoginStatus::OnlineWithAnotherAccount => Ok(()),
+        LoginStatus::Offline => Err(LoginError::AuthenticationFailed()),
     }
 }
