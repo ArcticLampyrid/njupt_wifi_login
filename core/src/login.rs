@@ -20,7 +20,7 @@ const URL_CHECK_STATUS: &str = concatcp!(
 );
 const URL_LOGIN: &str = concatcp!(
     URL_BASE_WITH_PORT,
-    "/eportal/?c=ACSetting&a=Login&wlanuserip={}&wlanacip=10.255.252.150"
+    "/eportal/?c=ACSetting&a=Login&wlanuserip={}&wlanacip=10.255.252.150&&wlanacname=XL-BRAS-SR8806-X"
 );
 
 static RE_FETCH_IP: Lazy<Regex> = Lazy::new(|| Regex::new("ss5=\"(.*?)\"").unwrap());
@@ -103,9 +103,9 @@ async fn check_status(
 
 fn derive_account(userid: &String, isp: IspType) -> String {
     match isp {
-        IspType::EDU => format!("{}", userid),
-        IspType::CMCC => format!("{}@cmcc", userid),
-        IspType::CT => format!("{}@njxy", userid),
+        IspType::EDU => format!("{userid}"),
+        IspType::CMCC => format!("{userid}@cmcc"),
+        IspType::CT => format!("{userid}@njxy"),
     }
 }
 

@@ -25,9 +25,9 @@ impl NetworkChangedListener {
             while let Some((message, _)) = messages.next().await {
                 match message.payload {
                     InnerMessage(NewRoute(message)) => {
+                        trace!(?message);
                         for attr in message.nlas {
                             if let Gateway(_) = attr {
-                                trace!("New route added");
                                 if let Err(TrySendError::Closed(_)) = tx.try_send(()) {
                                     // rx is dropped
                                     return;
