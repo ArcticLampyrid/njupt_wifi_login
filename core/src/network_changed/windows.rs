@@ -14,6 +14,7 @@ use windows::Win32::{
 #[must_use]
 pub struct NetworkChangedListener {
     handle: HANDLE,
+    _tx: Box<mpsc::Sender<()>>,
 }
 
 impl NetworkChangedListener {
@@ -21,15 +22,16 @@ impl NetworkChangedListener {
         let mut handle = HANDLE::default();
         let (tx, rx) = mpsc::channel(1);
         let tx = Box::into_raw(Box::new(tx));
-        unsafe {
+        let tx = unsafe {
             NotifyNetworkConnectivityHintChange(
                 Some(Self::callback),
                 Some(tx as *const c_void),
                 true,
                 ptr::addr_of_mut!(handle),
             )?;
-        }
-        Ok((Self { handle }, rx))
+            Box::from_raw(tx)
+        };
+        Ok((Self { handle, _tx: tx }, rx))
     }
 
     unsafe extern "system" fn callback(
