@@ -5,7 +5,6 @@ mod network_changed;
 
 use anyhow::Error;
 use once_cell::sync::Lazy;
-use reqwest::redirect::Policy;
 use serde::{Deserialize, Serialize};
 use std::{env, time::Duration};
 use std::{path::PathBuf, time::Instant};
@@ -31,7 +30,6 @@ static LOG_DIRECTORY: Lazy<PathBuf> = Lazy::new(|| {
 });
 static LOG_FILENAME: &str = "njupt_wifi.log";
 
-const TIMEOUT_DURATION: Duration = Duration::from_secs(3);
 const DEBOUNCE_DURATION: Duration = Duration::from_secs(3);
 const MAX_TRY_COUNT: usize = 3;
 
@@ -92,14 +90,7 @@ async fn main() -> Result<(), Error> {
         let mut try_count = 1;
         while try_count <= MAX_TRY_COUNT {
             info!("Start to login (try {try_count}/{MAX_TRY_COUNT})");
-            // reusing client among different network may fail
-            let client = reqwest::Client::builder()
-                .no_proxy()
-                .timeout(TIMEOUT_DURATION)
-                .connect_timeout(TIMEOUT_DURATION)
-                .redirect(Policy::none())
-                .build()?;
-            match login(&client, &credential).await {
+            match login(&credential).await {
                 Ok(_) => {
                     info!("Connected");
                     break;

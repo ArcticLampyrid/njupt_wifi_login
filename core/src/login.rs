@@ -1,8 +1,10 @@
 use std::net::Ipv4Addr;
+use std::time::Duration;
 
 use const_format::concatcp;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use reqwest::redirect::Policy;
 use serde::Deserialize;
 use thiserror::Error;
 use tracing::info;
@@ -24,6 +26,8 @@ const URL_LOGIN: &str = concatcp!(
 );
 
 static RE_FETCH_IP: Lazy<Regex> = Lazy::new(|| Regex::new("ss5=\"(.*?)\"").unwrap());
+
+const TIMEOUT_DURATION: Duration = Duration::from_secs(3);
 
 #[derive(Error, Debug)]
 pub enum LoginError {
@@ -109,10 +113,17 @@ fn derive_account(userid: &String, isp: IspType) -> String {
     }
 }
 
-pub async fn login(client: &reqwest::Client, config: &Credential) -> Result<(), LoginError> {
-    let ip = fetch_ip(client).await?;
+pub async fn login(config: &Credential) -> Result<(), LoginError> {
+    // reusing client among different network may fail
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(TIMEOUT_DURATION)
+        .connect_timeout(TIMEOUT_DURATION)
+        .redirect(Policy::none())
+        .build()?;
+    let ip = fetch_ip(&client).await?;
     let account = derive_account(&config.userid, config.isp);
-    match check_status(client, &ip, &account).await? {
+    match check_status(&client, &ip, &account).await? {
         LoginStatus::Online => {
             info!("Already logged in");
             return Ok(());
@@ -128,7 +139,7 @@ pub async fn login(client: &reqwest::Client, config: &Credential) -> Result<(), 
         .form(&[("DDDDD", &account), ("upass", &config.password)])
         .send()
         .await?;
-    match check_status(client, &ip, &account).await? {
+    match check_status(&client, &ip, &account).await? {
         LoginStatus::Online => Ok(()),
         LoginStatus::OnlineWithAnotherAccount => Ok(()),
         LoginStatus::Offline => Err(LoginError::AuthenticationFailed()),

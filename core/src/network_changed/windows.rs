@@ -2,6 +2,7 @@ use std::{ffi::c_void, ptr};
 
 use anyhow::Result;
 use tokio::sync::mpsc::{self, error::TrySendError};
+use tracing::trace;
 use windows::Win32::{
     Foundation::HANDLE,
     NetworkManagement::IpHelper::{CancelMibChangeNotify2, NotifyNetworkConnectivityHintChange},
@@ -21,6 +22,7 @@ impl NetworkChangedListener {
     pub fn listen() -> Result<(Self, mpsc::Receiver<()>)> {
         let mut handle = HANDLE::default();
         let (tx, rx) = mpsc::channel(1);
+        let _ = tx.try_send(());
         let tx = Box::into_raw(Box::new(tx));
         let tx = unsafe {
             NotifyNetworkConnectivityHintChange(

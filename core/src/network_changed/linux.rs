@@ -4,11 +4,14 @@ use netlink_packet_core::NetlinkPayload::InnerMessage;
 use netlink_packet_route::{route::Nla::Gateway, RtnlMessage::NewRoute};
 use netlink_sys::{AsyncSocket, SocketAddr};
 use rtnetlink::new_connection;
-use tokio::sync::mpsc::{self, error::TrySendError};
+use tokio::{sync::mpsc::{self, error::TrySendError}, task::JoinHandle};
 use tracing::trace;
 
 #[must_use]
-pub struct NetworkChangedListener {}
+pub struct NetworkChangedListener {
+    handle_conn: JoinHandle<()>,
+    handle_loop: JoinHandle<()>
+}
 
 impl NetworkChangedListener {
     pub fn listen() -> Result<(Self, mpsc::Receiver<()>)> {
@@ -16,12 +19,9 @@ impl NetworkChangedListener {
         let addr = SocketAddr::new(0, (libc::RTMGRP_IPV4_ROUTE).try_into().unwrap());
         conn.socket_mut().socket_mut().bind(&addr)?;
         let (tx, rx) = mpsc::channel(1);
-        tokio::spawn(conn);
-        tokio::spawn(async move {
-            if let Err(TrySendError::Closed(_)) = tx.try_send(()) {
-                // rx is dropped
-                return;
-            }
+        let _ = tx.try_send(());
+        let handle_conn = tokio::spawn(conn);
+        let handle_loop = tokio::spawn(async move {
             while let Some((message, _)) = messages.next().await {
                 match message.payload {
                     InnerMessage(NewRoute(message)) => {
@@ -39,6 +39,13 @@ impl NetworkChangedListener {
                 }
             }
         });
-        Ok((Self {}, rx))
+        Ok((Self {handle_conn, handle_loop}, rx))
+    }
+}
+
+impl Drop for NetworkChangedListener {
+    fn drop(&mut self) {
+        self.handle_conn.abort();
+        self.handle_loop.abort();
     }
 }
