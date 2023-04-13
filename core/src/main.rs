@@ -44,10 +44,26 @@ static DNS_RESOLVER: Lazy<Arc<CustomTrustDnsResolver>> = Lazy::new(|| {
 const URL_GENERATE_204: &str = "http://connect.rom.miui.com/generate_204";
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct MyConfig {
+pub struct Credential {
     userid: String,
     password: String,
     isp: IspType,
+}
+
+impl Credential {
+    fn derive_account(&self) -> String {
+        match self.isp {
+            IspType::EDU => self.userid.clone(),
+            IspType::CMCC => format!("{}@cmcc", self.userid),
+            IspType::CT => format!("{}@njxy", self.userid),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct MyConfig {
+    #[serde(flatten)]
+    credential: Credential,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -122,13 +138,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         match rx.recv().await {
             Some(ActionInfo::Login()) => {
                 info!("Start to login");
-                match login_wifi(
-                    my_config.isp,
-                    my_config.userid.as_str(),
-                    my_config.password.as_str(),
-                )
-                .await
-                {
+                match login_wifi(&my_config.credential).await {
                     Ok(_) => {
                         info!("Connected");
                     }
@@ -143,12 +153,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn login_wifi(isp: IspType, userid: &str, password: &str) -> Result<(), WifiLoginError> {
-    let actual_userid = match isp {
-        IspType::EDU => format!(",0,{}", userid),
-        IspType::CMCC => format!(",0,{}@cmcc", userid),
-        IspType::CT => format!(",0,{}@njxy", userid),
-    };
+async fn login_wifi(credential: &Credential) -> Result<(), WifiLoginError> {
     let dormitory_pattern: regex::Regex =
         Regex::new("ip=(.*?)&wlanacip=(.*?)&wlanacname=(.*?)\"").unwrap();
     let library_pattern: regex::Regex = Regex::new("UserIP=(.*?)&wlanacname=(.*?)&(.*?)=").unwrap();
@@ -172,8 +177,7 @@ async fn login_wifi(isp: IspType, userid: &str, password: &str) -> Result<(), Wi
                     let ip = captures.get(1).map_or("", |m| m.as_str());
                     let wlanacip = captures.get(2).map_or("", |m| m.as_str());
                     let wlanacname = captures.get(3).map_or("", |m| m.as_str());
-                    send_login_request(actual_userid.as_str(), password, ip, wlanacip, wlanacname)
-                        .await?;
+                    send_login_request(credential, ip, wlanacip, wlanacname).await?;
                     Ok(())
                 }
                 None => Err(WifiLoginError::AuthenticationFailed()),
@@ -184,13 +188,13 @@ async fn login_wifi(isp: IspType, userid: &str, password: &str) -> Result<(), Wi
 }
 
 async fn send_login_request(
-    userid: &str,
-    password: &str,
+    credential: &Credential,
     ip: &str,
     wlanacip: &str,
     wlanacname: &str,
 ) -> Result<(), WifiLoginError> {
     let url = format!("http://p.njupt.edu.cn:801/eportal/?c=ACSetting&a=Login&protocol=http:&hostname=p.njupt.edu.cn&iTermType=1&wlanuserip={}&wlanacip={}&wlanacname={}&mac=00-00-00-00-00-00&ip={}&enAdvert=0&queryACIP=0&loginMethod=1", ip, wlanacip, wlanacname, ip);
+    let ddddd = format!(",0,{}", credential.derive_account());
     let params = [
         ("R1", "0"),
         ("R2", "0"),
@@ -207,8 +211,8 @@ async fn send_login_request(
         ("cmd", ""),
         ("Login", ""),
         ("v6ip", ""),
-        ("DDDDD", userid),
-        ("upass", password),
+        ("DDDDD", ddddd.as_ref()),
+        ("upass", credential.password.as_ref()),
     ];
     let client = reqwest::Client::builder()
         .no_proxy()
