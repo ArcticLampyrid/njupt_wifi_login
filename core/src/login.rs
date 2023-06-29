@@ -1,8 +1,10 @@
 use crate::credential::Credential;
 use crate::dns_resolver::CustomTrustDnsResolver;
+use base64::Engine;
 use log::*;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use reqwest::{redirect::Policy, Url};
 use std::{sync::Arc, vec};
 use thiserror::Error;
 use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
@@ -14,6 +16,7 @@ static DNS_RESOLVER: Lazy<Arc<CustomTrustDnsResolver>> = Lazy::new(|| {
 });
 
 const URL_GENERATE_204: &str = "http://connect.rom.miui.com/generate_204";
+const ERROR_MSG_OFF_HOURS: &str = "QXV0aGVudGljYXRpb24gRmFpbCBFcnJDb2RlPTE2";
 
 const AP_INFO_PATTERNS: Lazy<Vec<regex::Regex>> = Lazy::new(|| {
     vec![
@@ -43,6 +46,10 @@ pub enum WifiLoginError {
     HttpRequestFailed(#[from] reqwest::Error),
     #[error("authentication failed")]
     AuthenticationFailed(),
+    #[error("off hours")]
+    OffHours(),
+    #[error("authentication server rejected: {0}")]
+    ServerRejected(String),
 }
 
 pub async fn get_network_status() -> NetworkStatus {
@@ -119,14 +126,48 @@ pub async fn send_login_request(
     let client = reqwest::Client::builder()
         .no_proxy()
         .dns_resolver(DNS_RESOLVER.clone())
+        .redirect(Policy::none())
         .build()?;
     let resp = client.post(url).form(&params).send().await?;
-    if resp.status().is_success() && resp.text().await?.contains("成功") {
-        return Ok(());
-    }
-    if client.get(URL_GENERATE_204).send().await?.status() == reqwest::StatusCode::NO_CONTENT {
-        // Fallback
-        return Ok(());
+    match resp.status() {
+        reqwest::StatusCode::FOUND => {
+            let url = resp
+                .headers()
+                .get("Location")
+                .and_then(|location| location.to_str().ok())
+                .and_then(|location| Url::parse(location).ok());
+            let url = match url {
+                Some(url) => url,
+                None => return Err(WifiLoginError::AuthenticationFailed()),
+            };
+            let error_msg = url
+                .query_pairs()
+                .find(|(key, value)| key == "ErrorMsg" && !value.is_empty())
+                .map(|(_, value)| value);
+            match error_msg {
+                Some(error_msg) => {
+                    if error_msg == ERROR_MSG_OFF_HOURS {
+                        return Err(WifiLoginError::OffHours());
+                    } else {
+                        let decoded_error_msg = base64::engine::general_purpose::STANDARD
+                            .decode(error_msg.as_ref())
+                            .ok()
+                            .and_then(|x| String::from_utf8(x).ok())
+                            .unwrap_or_else(|| error_msg.as_ref().to_owned());
+                        return Err(WifiLoginError::ServerRejected(decoded_error_msg));
+                    }
+                }
+                None => return Ok(()),
+            }
+        }
+        _ => {
+            if client.get(URL_GENERATE_204).send().await?.status()
+                == reqwest::StatusCode::NO_CONTENT
+            {
+                // Fallback
+                return Ok(());
+            }
+        }
     }
     Err(WifiLoginError::AuthenticationFailed())
 }
