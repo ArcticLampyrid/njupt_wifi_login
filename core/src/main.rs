@@ -6,7 +6,8 @@ mod login;
 mod win32_network_connectivity_hint_changed;
 
 use crate::credential::Credential;
-use crate::login::login_wifi;
+use crate::login::get_network_status;
+use crate::login::send_login_request;
 use log::*;
 use log4rs::{
     append::file::FileAppender,
@@ -44,7 +45,7 @@ pub struct MyConfig {
 
 #[derive(Debug)]
 pub enum ActionInfo {
-    Login(),
+    CheckAndLogin(),
 }
 
 fn read_my_config() -> Result<MyConfig, Box<dyn std::error::Error>> {
@@ -85,7 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             == NetworkConnectivityLevelHintConstrainedInternetAccess
             || connectivity_hint.ConnectivityLevel == NetworkConnectivityLevelHintLocalAccess
         {
-            tx.send(ActionInfo::Login()).unwrap();
+            tx.send(ActionInfo::CheckAndLogin()).unwrap();
         }
     };
     let _network_connectivity_hint_changed_handle = NetworkConnectivityHintChangedHandle::register(
@@ -95,16 +96,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Network connectivity hint changed notification registered");
     loop {
         match rx.recv().await {
-            Some(ActionInfo::Login()) => {
-                info!("Start to login");
-                match login_wifi(&my_config.credential).await {
-                    Ok(_) => {
-                        info!("Connected");
+            Some(ActionInfo::CheckAndLogin()) => {
+                info!("Start to check network status");
+                let network_status = get_network_status().await;
+                info!("Network status: {:?}", network_status);
+                match network_status {
+                    login::NetworkStatus::AuthenticationNJUPT(ap_info) => {
+                        info!("Start to login");
+                        match send_login_request(&my_config.credential, &ap_info).await {
+                            Ok(_) => {
+                                info!("Connected");
+                            }
+                            Err(err) => {
+                                error!("Failed to connect: {}", err);
+                            }
+                        };
                     }
-                    Err(err) => {
-                        error!("Failed to connect: {}", err);
-                    }
-                };
+                    _ => {}
+                }
             }
             None => break,
         }
