@@ -1,7 +1,6 @@
 use std::{ffi::c_void, ptr};
-
 use windows::Win32::{
-    Foundation::HANDLE,
+    Foundation::{BOOLEAN, HANDLE},
     NetworkManagement::IpHelper::{CancelMibChangeNotify2, NotifyNetworkConnectivityHintChange},
     Networking::WinSock::NL_NETWORK_CONNECTIVITY_HINT,
 };
@@ -24,9 +23,10 @@ where
             NotifyNetworkConnectivityHintChange(
                 Some(Self::on_network_connectivity_hint_changed),
                 Some(func as *const F as *const c_void),
-                initial_notification,
+                BOOLEAN::from(initial_notification),
                 ptr::addr_of_mut!(handle),
-            )?;
+            )
+            .ok()?;
         }
         Ok(Self {
             _func: func,
