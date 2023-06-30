@@ -8,6 +8,7 @@ mod win32_network_connectivity_hint_changed;
 use crate::credential::Credential;
 use crate::login::{get_network_status, send_login_request, WifiLoginError};
 use crate::off_hours_cache::OffHoursCache;
+use clap::Parser;
 use log::*;
 use log4rs::{
     append::file::FileAppender,
@@ -52,6 +53,14 @@ pub enum ActionInfo {
     CheckAndLogin(),
 }
 
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Provide more detailed log during execution.
+    #[arg(short, long, default_value_t = false)]
+    verbose: bool,
+}
+
 fn read_my_config() -> Result<MyConfig, Box<dyn std::error::Error>> {
     let f = std::fs::File::open(CONFIG_PATH.as_path())?;
     let config: MyConfig = serde_yaml::from_reader(f)?;
@@ -60,18 +69,22 @@ fn read_my_config() -> Result<MyConfig, Box<dyn std::error::Error>> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Args = Args::parse();
+
+    let log_level = if args.verbose {
+        LevelFilter::Trace
+    } else {
+        LevelFilter::Info
+    };
+
     let file_log = FileAppender::builder()
-        .encoder(Box::new(PatternEncoder::new("{d} - {m}{n}")))
+        .encoder(Box::new(PatternEncoder::default()))
         .build(LOG_PATH.as_path())
         .unwrap();
 
     let log_config = log4rs::Config::builder()
         .appender(Appender::builder().build("file_log", Box::new(file_log)))
-        .build(
-            Root::builder()
-                .appender("file_log")
-                .build(LevelFilter::Trace),
-        )
+        .build(Root::builder().appender("file_log").build(log_level))
         .unwrap();
 
     let _ = log4rs::init_config(log_config).unwrap();
