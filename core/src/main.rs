@@ -3,11 +3,11 @@
 mod credential;
 mod dns_resolver;
 mod login;
+mod off_hours_cache;
 mod win32_network_connectivity_hint_changed;
-
 use crate::credential::Credential;
-use crate::login::get_network_status;
-use crate::login::send_login_request;
+use crate::login::{get_network_status, send_login_request, WifiLoginError};
+use crate::off_hours_cache::OffHoursCache;
 use log::*;
 use log4rs::{
     append::file::FileAppender,
@@ -18,7 +18,9 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::PathBuf;
+use std::time::Duration;
 use tokio::sync::mpsc;
+use tokio::sync::Mutex;
 use win32_network_connectivity_hint_changed::NetworkConnectivityHintChangedHandle;
 use windows::Win32::Networking::WinSock::{
     NetworkConnectivityLevelHintConstrainedInternetAccess, NetworkConnectivityLevelHintLocalAccess,
@@ -36,6 +38,8 @@ static LOG_PATH: Lazy<PathBuf> = Lazy::new(|| {
     path.push("njupt_wifi.log");
     path
 });
+
+static OFF_HOURS_CACHE: Lazy<Mutex<OffHoursCache>> = Lazy::new(|| Mutex::new(OffHoursCache::new()));
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MyConfig {
@@ -77,6 +81,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         error!("Failed to read config: {}", error);
         panic!("{}", error)
     });
+
+    tokio::spawn({
+        let tx = tx.clone();
+        async move {
+            tokio::time::sleep(Duration::from_secs(20 * 60)).await;
+            loop {
+                let expiration = OFF_HOURS_CACHE.lock().await.expiration();
+                if expiration.is_zero() {
+                    let _ = tx.send(ActionInfo::CheckAndLogin());
+                    tokio::time::sleep(Duration::from_secs(20 * 60)).await;
+                } else {
+                    tokio::time::sleep(std::cmp::min(expiration, Duration::from_secs(20 * 60)))
+                        .await;
+                }
+            }
+        }
+    });
+
     let on_network_connectivity_hint_changed = |connectivity_hint: NL_NETWORK_CONNECTIVITY_HINT| {
         info!(
             "ConnectivityLevel = {}",
@@ -94,6 +116,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         true,
     )?;
     info!("Network connectivity hint changed notification registered");
+
     loop {
         match rx.recv().await {
             Some(ActionInfo::CheckAndLogin()) => {
@@ -106,9 +129,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         match send_login_request(&my_config.credential, &ap_info).await {
                             Ok(_) => {
                                 info!("Connected");
+                                OFF_HOURS_CACHE.lock().await.clear();
                             }
                             Err(err) => {
                                 error!("Failed to connect: {}", err);
+                                if let WifiLoginError::OffHours() = err {
+                                    OFF_HOURS_CACHE.lock().await.set();
+                                }
                             }
                         };
                     }
