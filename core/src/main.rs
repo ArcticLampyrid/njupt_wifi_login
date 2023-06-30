@@ -130,9 +130,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     info!("Network connectivity hint changed notification registered");
 
+    let mut last_check_at: Option<std::time::Instant> = None;
+
     loop {
         match rx.recv().await {
             Some(ActionInfo::CheckAndLogin()) => {
+                {
+                    // debounce
+                    let check_at = std::time::Instant::now();
+                    if let Some(last_check_at) = last_check_at {
+                        if check_at.duration_since(last_check_at) < Duration::from_secs(5) {
+                            continue;
+                        }
+                    }
+                    last_check_at = Some(check_at);
+                }
+
                 info!("Start to check network status");
                 let network_status = get_network_status().await;
                 info!("Network status: {:?}", network_status);
