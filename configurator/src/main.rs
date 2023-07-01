@@ -68,6 +68,7 @@ struct ConfiguratorState {
     isp: IspTypeState,
     password_scope: PasswordScopeState,
     enabled: bool,
+    message: String,
 }
 
 fn read_my_config() -> Result<LoginConfig, Box<dyn Error>> {
@@ -109,6 +110,8 @@ fn main() {
         Err(_) => {}
     }
     initial_state.enabled = AUTO_LAUNCH.is_enabled().unwrap_or(false);
+    initial_state.message =
+        "Note: The configuration won't take effect until rebooting.".to_string();
 
     // start the application
     AppLauncher::with_window(main_window)
@@ -177,8 +180,8 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
         .lens(ConfiguratorState::enabled)
         .align_left();
 
-    let note_label =
-        Label::new("Note: The configuration won't take effect until rebooting.").align_left();
+    let message_label =
+        Label::new(|data: &ConfiguratorState, _env: &_| data.message.clone()).align_left();
 
     let save_button = Button::new("Save")
         .on_click(|_ctx, data: &mut ConfiguratorState, _env| {
@@ -192,19 +195,29 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
                 PasswordScopeState::LocalMachine => PasswordScope::LocalMachine,
                 PasswordScopeState::CurrentUser => PasswordScope::CurrentUser,
             };
+            let password = Password::try_new(data.password.clone(), password_scope);
+            if let Err(e) = password {
+                data.message = format!("Error: Failed to encrypt password: {}", e);
+                return;
+            }
+            let password = password.unwrap();
             let config = LoginConfig {
-                credential: Credential::new(
-                    data.userid.clone(),
-                    Password::new(data.password.clone(), password_scope),
-                    isp,
-                ),
+                credential: Credential::new(data.userid.clone(), password, isp),
             };
-            let _ = write_my_config(&config);
-            let _ = if data.enabled {
+            if let Err(e) = write_my_config(&config) {
+                data.message = format!("Error: Failed to write config: {}", e);
+                return;
+            }
+            let auto_launch_result = if data.enabled {
                 AUTO_LAUNCH.enable()
             } else {
                 AUTO_LAUNCH.disable()
             };
+            if let Err(e) = auto_launch_result {
+                data.message = format!("Error: Failed to modify AutoLaunch setting: {}", e);
+                return;
+            }
+            data.message = "Info: Applied successfully.".to_string();
         })
         .fix_size(72.0, 36.0)
         .align_right();
@@ -220,7 +233,7 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
         .with_default_spacer()
         .with_child(enable_checkbox)
         .with_default_spacer()
-        .with_child(note_label)
+        .with_child(message_label)
         .with_default_spacer()
         .with_child(save_button);
 

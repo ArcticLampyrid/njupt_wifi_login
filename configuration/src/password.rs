@@ -4,6 +4,8 @@ use serde_with::serde_as;
 use std::borrow::Cow;
 use std::mem::MaybeUninit;
 use std::ptr;
+use thiserror::Error;
+use windows::core::Error;
 use windows::Win32::Foundation::HLOCAL;
 use windows::Win32::Security::Cryptography::CryptProtectData;
 use windows::Win32::Security::Cryptography::CryptUnprotectData;
@@ -27,6 +29,14 @@ pub enum Password {
         #[serde_as(as = "Base64")]
         data_protection: Vec<u8>,
     },
+}
+
+#[derive(Error, Debug)]
+pub enum PasswordError {
+    #[error("win32 cryptography error: {0}")]
+    Win32CryptographyError(#[from] Error),
+    #[error("scope not supported")]
+    ScopeNotSupported(PasswordScope),
 }
 
 impl ToString for Password {
@@ -62,9 +72,13 @@ impl ToString for Password {
 }
 
 impl Password {
-    pub fn new(s: String, scope: PasswordScope) -> Self {
+    pub fn new_basic(s: String) -> Self {
+        Password::Basic(s)
+    }
+
+    pub fn try_new(s: String, scope: PasswordScope) -> Result<Self, PasswordError> {
         match scope {
-            PasswordScope::Anywhere => Password::Basic(s),
+            PasswordScope::Anywhere => Ok(Password::Basic(s)),
             PasswordScope::LocalMachine => {
                 Password::new_with_data_protection(s, CRYPTPROTECT_LOCAL_MACHINE)
             }
@@ -72,7 +86,7 @@ impl Password {
         }
     }
 
-    fn new_with_data_protection(s: String, flags: u32) -> Self {
+    fn new_with_data_protection(s: String, flags: u32) -> Result<Self, PasswordError> {
         unsafe {
             let source = CRYPT_INTEGER_BLOB {
                 cbData: s.len() as u32,
@@ -87,14 +101,15 @@ impl Password {
                 None,
                 flags,
                 result.as_mut_ptr(),
-            );
+            )
+            .ok()?;
             let result = result.assume_init();
             let result_bytes =
                 (&*ptr::slice_from_raw_parts(result.pbData, result.cbData as usize)).to_vec();
             let _ = LocalFree(HLOCAL(result.pbData as isize));
-            Password::DataProtection {
+            Ok(Password::DataProtection {
                 data_protection: result_bytes,
-            }
+            })
         }
     }
 
