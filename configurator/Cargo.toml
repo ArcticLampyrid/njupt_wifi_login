@@ -6,6 +6,7 @@ version = "0.1.3"
 [dependencies]
 auto-launch = "0.4.0"
 druid = "0.8.3"
+njupt_wifi_login_configuration = {path = "../configuration"}
+once_cell = "1.18.0"
 serde = {version = "1", features = ["derive"]}
 serde_yaml = "0.9.22"
-once_cell = "1.18.0"

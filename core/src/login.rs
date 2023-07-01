@@ -1,7 +1,7 @@
-use crate::credential::Credential;
 use crate::dns_resolver::CustomTrustDnsResolver;
 use base64::Engine;
 use log::*;
+use njupt_wifi_login_configuration::credential::Credential;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use reqwest::{redirect::Policy, Url};
@@ -104,6 +104,7 @@ pub async fn send_login_request(
 ) -> Result<(), WifiLoginError> {
     let url = format!("http://p.njupt.edu.cn:801/eportal/?c=ACSetting&a=Login&protocol=http:&hostname=p.njupt.edu.cn&iTermType=1&wlanuserip={}&wlanacip={}&wlanacname={}&mac=00-00-00-00-00-00&ip={}&enAdvert=0&queryACIP=0&loginMethod=1", ap_info.user_ip, ap_info.ac_ip, ap_info.ac_name, ap_info.user_ip);
     let ddddd = format!(",0,{}", credential.derive_account());
+    let upass = credential.password().get();
     let params = [
         ("R1", "0"),
         ("R2", "0"),
@@ -121,7 +122,7 @@ pub async fn send_login_request(
         ("Login", ""),
         ("v6ip", ""),
         ("DDDDD", ddddd.as_ref()),
-        ("upass", credential.password()),
+        ("upass", upass.as_ref()),
     ];
     let client = reqwest::Client::builder()
         .no_proxy()

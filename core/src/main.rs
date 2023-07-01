@@ -1,11 +1,8 @@
 #![windows_subsystem = "windows"]
-
-mod credential;
 mod dns_resolver;
 mod login;
 mod off_hours_cache;
 mod win32_network_connectivity_hint_changed;
-use crate::credential::Credential;
 use crate::login::{get_network_status, send_login_request, WifiLoginError};
 use crate::off_hours_cache::OffHoursCache;
 use clap::Parser;
@@ -15,8 +12,8 @@ use log4rs::{
     config::{Appender, Root},
     encode::pattern::PatternEncoder,
 };
+use njupt_wifi_login_configuration::login_config::LoginConfig;
 use once_cell::sync::Lazy;
-use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -42,12 +39,6 @@ static LOG_PATH: Lazy<PathBuf> = Lazy::new(|| {
 
 static OFF_HOURS_CACHE: Lazy<Mutex<OffHoursCache>> = Lazy::new(|| Mutex::new(OffHoursCache::new()));
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct MyConfig {
-    #[serde(flatten)]
-    credential: Credential,
-}
-
 #[derive(Debug)]
 pub enum ActionInfo {
     CheckAndLogin(),
@@ -61,9 +52,9 @@ struct Args {
     verbose: bool,
 }
 
-fn read_my_config() -> Result<MyConfig, Box<dyn std::error::Error>> {
+fn read_my_config() -> Result<LoginConfig, Box<dyn std::error::Error>> {
     let f = std::fs::File::open(CONFIG_PATH.as_path())?;
-    let config: MyConfig = serde_yaml::from_reader(f)?;
+    let config: LoginConfig = serde_yaml::from_reader(f)?;
     Ok(config)
 }
 

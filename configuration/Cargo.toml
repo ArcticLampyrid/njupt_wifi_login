@@ -1,0 +1,17 @@
+[package]
+edition = "2021"
+name = "njupt_wifi_login_configuration"
+version = "0.1.3"
+
+[dependencies]
+serde = {version = "1", features = ["derive"]}
+serde_with = {version = "3", features = ["base64"]}
+serde_yaml = "0.9.22"
+
+[dependencies.windows]
+features = [
+  "Win32_Foundation",
+  "Win32_System_Memory",
+  "Win32_Security_Cryptography",
+]
+version = "0.48"
