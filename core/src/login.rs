@@ -1,11 +1,11 @@
 use crate::dns_resolver::CustomTrustDnsResolver;
-use base64::Engine;
 use log::*;
 use njupt_wifi_login_configuration::credential::Credential;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use reqwest::{redirect::Policy, Url};
-use std::{sync::Arc, vec};
+use reqwest::redirect::Policy;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use thiserror::Error;
 use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 
@@ -16,20 +16,18 @@ static DNS_RESOLVER: Lazy<Arc<CustomTrustDnsResolver>> = Lazy::new(|| {
 });
 
 const URL_GENERATE_204: &str = "http://connect.rom.miui.com/generate_204";
-const ERROR_MSG_OFF_HOURS: &str = "QXV0aGVudGljYXRpb24gRmFpbCBFcnJDb2RlPTE2";
+const URL_AP_PORTAL: &str = "https://p.njupt.edu.cn/a79.htm";
+const ERROR_MSG_OFF_HOURS: &str = "Authentication Fail ErrCode=16";
 
-const AP_INFO_PATTERNS: Lazy<Vec<regex::Regex>> = Lazy::new(|| {
-    vec![
-        Regex::new("ip=(.*?)&wlanacip=(.*?)&wlanacname=(.*?)\"").unwrap(),
-        Regex::new("UserIP=(.*?)&wlanacname=(.*?)&(.*?)=").unwrap(),
-    ]
+const NJUPT_AUTHENTICATION_PATTERN: Lazy<regex::Regex> = Lazy::new(|| {
+    Regex::new("Authentication is required\\. Click <a href=\"(.*?)\">here</a> to open the authentication page\\.").unwrap()
 });
+
+const AP_INFO_PATTERN: Lazy<regex::Regex> = Lazy::new(|| Regex::new("v46ip='(.*?)'").unwrap());
 
 #[derive(Debug)]
 pub struct ApInfo {
     pub user_ip: String,
-    pub ac_ip: String,
-    pub ac_name: String,
 }
 
 #[derive(Debug)]
@@ -52,6 +50,13 @@ pub enum WifiLoginError {
     ServerRejected(String),
 }
 
+#[derive(Serialize, Deserialize)]
+struct NJUPTAuthenticationResult {
+    result: i32,
+    msg: String,
+    ret_code: Option<i32>,
+}
+
 pub async fn get_network_status() -> NetworkStatus {
     let client_builder = reqwest::Client::builder()
         .no_proxy()
@@ -60,35 +65,27 @@ pub async fn get_network_status() -> NetworkStatus {
         Ok(client) => client,
         Err(_) => return NetworkStatus::Disconnected,
     };
-    let login_page = match client.get(URL_GENERATE_204).send().await {
-        Ok(login_page) => login_page,
+    let generate_204_page = match client.get(URL_GENERATE_204).send().await {
+        Ok(generate_204_page) => generate_204_page,
         Err(_) => return NetworkStatus::Disconnected,
     };
-    match login_page.status() {
+    match generate_204_page.status() {
         reqwest::StatusCode::NO_CONTENT => {
             // Network has been available
             NetworkStatus::Connected
         }
         reqwest::StatusCode::OK => {
-            let content = match login_page.text().await {
+            let content = match generate_204_page.text().await {
                 Ok(content) => content,
                 Err(_) => return NetworkStatus::Disconnected,
             };
-            let captures_box = AP_INFO_PATTERNS
-                .iter()
-                .find_map(|pattern| pattern.captures(content.as_str()));
-            match captures_box {
-                Some(captures) => {
-                    let ip = captures.get(1).map_or("", |m| m.as_str());
-                    let wlanacip = captures.get(2).map_or("", |m| m.as_str());
-                    let wlanacname = captures.get(3).map_or("", |m| m.as_str());
-                    NetworkStatus::AuthenticationNJUPT(ApInfo {
-                        user_ip: ip.to_owned(),
-                        ac_ip: wlanacip.to_owned(),
-                        ac_name: wlanacname.to_owned(),
-                    })
+            if NJUPT_AUTHENTICATION_PATTERN.is_match(content.as_str()) {
+                match get_ap_info(client).await {
+                    Some(value) => NetworkStatus::AuthenticationNJUPT(value),
+                    None => NetworkStatus::AuthenticationUnknown,
                 }
-                None => NetworkStatus::AuthenticationUnknown,
+            } else {
+                NetworkStatus::AuthenticationUnknown
             }
         }
         reqwest::StatusCode::FOUND | reqwest::StatusCode::TEMPORARY_REDIRECT => {
@@ -98,77 +95,93 @@ pub async fn get_network_status() -> NetworkStatus {
     }
 }
 
+async fn get_ap_info(client: reqwest::Client) -> Option<ApInfo> {
+    let ap_portal = match client.get(URL_AP_PORTAL).send().await {
+        Ok(ap_portal) => ap_portal,
+        Err(err) => {
+            error!("Failed to get ap info: {}", err);
+            return None;
+        }
+    };
+    if ap_portal.status() != reqwest::StatusCode::OK {
+        return None;
+    }
+    let ap_portal_content = match ap_portal.text().await {
+        Ok(content) => content,
+        Err(err) => {
+            error!("Failed to decode ap portal data: {}", err);
+            return None;
+        }
+    };
+    match AP_INFO_PATTERN.captures(ap_portal_content.as_str()) {
+        Some(captures) => {
+            let ip = captures.get(1).map_or("", |m| m.as_str());
+            Some(ApInfo {
+                user_ip: ip.to_owned(),
+            })
+        }
+        None => None,
+    }
+}
+
 pub async fn send_login_request(
     credential: &Credential,
     ap_info: &ApInfo,
 ) -> Result<(), WifiLoginError> {
-    let url = format!("http://p.njupt.edu.cn:801/eportal/?c=ACSetting&a=Login&protocol=http:&hostname=p.njupt.edu.cn&iTermType=1&wlanuserip={}&wlanacip={}&wlanacname={}&mac=00-00-00-00-00-00&ip={}&enAdvert=0&queryACIP=0&loginMethod=1", ap_info.user_ip, ap_info.ac_ip, ap_info.ac_name, ap_info.user_ip);
+    let url = "https://p.njupt.edu.cn:802/eportal/portal/login";
     let ddddd = format!(",0,{}", credential.derive_account());
     let upass = credential.password().get();
     let params = [
-        ("R1", "0"),
-        ("R2", "0"),
-        ("R3", "0"),
-        ("R6", "0"),
-        ("para", "0"),
-        ("0MKKey", "123456"),
-        ("buttonClicked", ""),
-        ("redirect_url", ""),
-        ("err_flag", ""),
-        ("username", ""),
-        ("password", ""),
-        ("user", ""),
-        ("cmd", ""),
-        ("Login", ""),
-        ("v6ip", ""),
-        ("DDDDD", ddddd.as_ref()),
-        ("upass", upass.as_ref()),
+        ("callback", "dr1003"),
+        ("login_method", "1"),
+        ("user_account", ddddd.as_ref()),
+        ("user_password", upass.as_ref()),
+        ("wlan_user_ip", ap_info.user_ip.as_ref()),
+        ("wlan_user_ipv6", ""),
+        ("wlan_user_mac", "000000000000"),
+        ("wlan_ac_ip", ""),
+        ("wlan_ac_name", ""),
+        ("sVersion", "4.1.3"),
+        ("terminal_type", "1"),
+        ("lang", "zh-cn"),
+        ("v", "3335"),
+        ("lang", "zh"),
     ];
     let client = reqwest::Client::builder()
         .no_proxy()
         .dns_resolver(DNS_RESOLVER.clone())
         .redirect(Policy::none())
         .build()?;
-    let resp = client.post(url).form(&params).send().await?;
-    match resp.status() {
-        reqwest::StatusCode::FOUND => {
-            let url = resp
-                .headers()
-                .get("Location")
-                .and_then(|location| location.to_str().ok())
-                .and_then(|location| Url::parse(location).ok());
-            let url = match url {
-                Some(url) => url,
-                None => return Err(WifiLoginError::AuthenticationFailed()),
-            };
-            let error_msg = url
-                .query_pairs()
-                .find(|(key, value)| key == "ErrorMsg" && !value.is_empty())
-                .map(|(_, value)| value);
-            match error_msg {
-                Some(error_msg) => {
-                    if error_msg == ERROR_MSG_OFF_HOURS {
+    let resp = client.get(url).query(&params).send().await?;
+    if resp.status() == reqwest::StatusCode::OK {
+        let content = resp.text().await?;
+        if content.len() <= ("dr1003();".len()) {
+            error!("Failed to parse authentication result: {}", content);
+        } else {
+            let json_content = &content[("dr1003(").len()..(content.len() - ");".len())];
+            match serde_json::from_str::<NJUPTAuthenticationResult>(json_content) {
+                Ok(result) => {
+                    if result.result == 1 {
+                        return Ok(());
+                    }
+                    if result.msg == ERROR_MSG_OFF_HOURS {
                         return Err(WifiLoginError::OffHours());
                     } else {
-                        let decoded_error_msg = base64::engine::general_purpose::STANDARD
-                            .decode(error_msg.as_ref())
-                            .ok()
-                            .and_then(|x| String::from_utf8(x).ok())
-                            .unwrap_or_else(|| error_msg.as_ref().to_owned());
-                        return Err(WifiLoginError::ServerRejected(decoded_error_msg));
+                        return Err(WifiLoginError::ServerRejected(result.msg));
                     }
                 }
-                None => return Ok(()),
+                Err(err) => {
+                    error!(
+                        "Failed to parse authentication result: {}, error: {}",
+                        content, err
+                    );
+                }
             }
         }
-        _ => {
-            if client.get(URL_GENERATE_204).send().await?.status()
-                == reqwest::StatusCode::NO_CONTENT
-            {
-                // Fallback
-                return Ok(());
-            }
-        }
+    }
+    if client.get(URL_GENERATE_204).send().await?.status() == reqwest::StatusCode::NO_CONTENT {
+        // Fallback
+        return Ok(());
     }
     Err(WifiLoginError::AuthenticationFailed())
 }
