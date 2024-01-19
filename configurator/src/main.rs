@@ -1,5 +1,5 @@
 #![windows_subsystem = "windows"]
-
+mod i18n;
 use auto_launch::{AutoLaunch, AutoLaunchBuilder};
 use druid::widget::{
     Align, Button, Checkbox, CrossAxisAlignment, Flex, FlexParams, Label, RadioGroup, TextBox,
@@ -110,8 +110,7 @@ fn main() {
         Err(_) => {}
     }
     initial_state.enabled = AUTO_LAUNCH.is_enabled().unwrap_or(false);
-    initial_state.message =
-        "Note: The configuration won't take effect until rebooting.".to_string();
+    initial_state.message = fl!("tips-not-effective-until-rebooting");
 
     // start the application
     AppLauncher::with_window(main_window)
@@ -120,11 +119,11 @@ fn main() {
 }
 
 fn build_root_widget() -> impl Widget<ConfiguratorState> {
-    let isp_label = Label::new("ISP").fix_width(100.0);
+    let isp_label = Label::new(fl!("isp")).fix_width(100.0);
     let isp_radio_group = RadioGroup::row(vec![
-        ("EDU", IspTypeState::EDU),
-        ("CMCC", IspTypeState::CMCC),
-        ("CT", IspTypeState::CT),
+        (fl!("isp-edu"), IspTypeState::EDU),
+        (fl!("isp-cmcc"), IspTypeState::CMCC),
+        (fl!("isp-ct"), IspTypeState::CT),
     ])
     .lens(ConfiguratorState::isp)
     .expand_width();
@@ -136,7 +135,7 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
             FlexParams::new(1.0, CrossAxisAlignment::End),
         );
 
-    let userid_label = Label::new("UserID").fix_width(100.0);
+    let userid_label = Label::new(fl!("user-id")).fix_width(100.0);
     let userid_text_box = TextBox::new()
         .expand_width()
         .lens(ConfiguratorState::userid);
@@ -148,7 +147,7 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
             FlexParams::new(1.0, CrossAxisAlignment::End),
         );
 
-    let password_label = Label::new("Password").fix_width(100.0);
+    let password_label = Label::new(fl!("password")).fix_width(100.0);
     let password_text_box = TextBox::new()
         .expand_width()
         .lens(ConfiguratorState::password);
@@ -160,11 +159,17 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
             FlexParams::new(1.0, CrossAxisAlignment::End),
         );
 
-    let password_scope_label = Label::new("PasswordScope").fix_width(100.0);
+    let password_scope_label = Label::new(fl!("password-scope")).fix_width(100.0);
     let password_scope_radio_group = RadioGroup::row(vec![
-        ("Anywhere", PasswordScopeState::Anywhere),
-        ("LocalMachine", PasswordScopeState::LocalMachine),
-        ("CurrentUser", PasswordScopeState::CurrentUser),
+        (fl!("password-scope-anywhere"), PasswordScopeState::Anywhere),
+        (
+            fl!("password-scope-local-machine"),
+            PasswordScopeState::LocalMachine,
+        ),
+        (
+            fl!("password-scope-current-user"),
+            PasswordScopeState::CurrentUser,
+        ),
     ])
     .lens(ConfiguratorState::password_scope)
     .expand_width();
@@ -176,14 +181,14 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
             FlexParams::new(1.0, CrossAxisAlignment::End),
         );
 
-    let enable_checkbox = Checkbox::new("Enable")
+    let enable_checkbox = Checkbox::new(fl!("enable"))
         .lens(ConfiguratorState::enabled)
         .align_left();
 
     let message_label =
         Label::new(|data: &ConfiguratorState, _env: &_| data.message.clone()).align_left();
 
-    let save_button = Button::new("Save")
+    let save_button = Button::new(fl!("save"))
         .on_click(|_ctx, data: &mut ConfiguratorState, _env| {
             let isp = match data.isp {
                 IspTypeState::EDU => IspType::EDU,
@@ -197,7 +202,7 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
             };
             let password = Password::try_new(data.password.clone(), password_scope);
             if let Err(e) = password {
-                data.message = format!("Error: Failed to encrypt password: {}", e);
+                data.message = fl!("error-failed-to-encrypt-password", details = e.to_string());
                 return;
             }
             let password = password.unwrap();
@@ -205,7 +210,7 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
                 credential: Credential::new(data.userid.clone(), password, isp),
             };
             if let Err(e) = write_my_config(&config) {
-                data.message = format!("Error: Failed to write config: {}", e);
+                data.message = fl!("error-failed-to-write-config", details = e.to_string());
                 return;
             }
             let auto_launch_result = if data.enabled {
@@ -214,10 +219,10 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
                 AUTO_LAUNCH.disable()
             };
             if let Err(e) = auto_launch_result {
-                data.message = format!("Error: Failed to modify AutoLaunch setting: {}", e);
+                data.message = fl!("error-failed-to-set-auto-launch", details = e.to_string());
                 return;
             }
-            data.message = "Info: Applied successfully.".to_string();
+            data.message = fl!("info-applied-successfully");
         })
         .fix_size(72.0, 36.0)
         .align_right();

@@ -1,0 +1,17 @@
+isp-edu = EDU
+isp-cmcc = CMCC
+isp-ct = CT
+password-scope-anywhere = Anywhere
+password-scope-local-machine = LocalMachine
+password-scope-current-user = CurrentUser
+isp = ISP
+user-id = UserID
+password = Password
+password-scope = PasswordScope
+enable = Enable
+save = Save
+tips-not-effective-until-rebooting = Note: The configuration won't take effect until rebooting.
+error-failed-to-encrypt-password = Error: Failed to encrypt password: {$details}
+error-failed-to-write-config = Error: Failed to write config: {$details}
+error-failed-to-set-auto-launch = Error: Failed to modify AutoLaunch setting: {$details}
+info-applied-successfully = Info: Applied successfully.

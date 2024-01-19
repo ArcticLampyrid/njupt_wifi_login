@@ -1,0 +1,17 @@
+isp-edu = 教育网
+isp-cmcc = 中国移动
+isp-ct = 中国电信
+password-scope-anywhere = 任何位置
+password-scope-local-machine = 本地机器
+password-scope-current-user = 当前用户
+isp = 运营商
+user-id = 用户ID
+password = 密码
+password-scope = 密码范围
+enable = 启用
+save = 保存
+tips-not-effective-until-rebooting = 注意：在重启前配置不会生效。
+error-failed-to-encrypt-password = 错误：加密存储密码失败：{$details}
+error-failed-to-write-config = 错误：写出配置失败：{$details}
+error-failed-to-set-auto-launch = 错误：修改自动启动设置失败：{$details}
+info-applied-successfully = 信息：应用成功。
