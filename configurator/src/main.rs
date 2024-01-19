@@ -212,8 +212,10 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
             }
             let auto_launch_result = if data.enabled {
                 AUTO_LAUNCH.enable()
-            } else {
+            } else if AUTO_LAUNCH.is_enabled().unwrap_or(true) {
                 AUTO_LAUNCH.disable()
+            } else {
+                Ok(())
             };
             if let Err(e) = auto_launch_result {
                 data.message = fl!("error-failed-to-set-auto-launch", details = e.to_string());
