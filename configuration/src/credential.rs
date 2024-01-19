@@ -32,18 +32,18 @@ impl Credential {
         }
     }
     pub fn into_password(self) -> Password {
-        return self.password;
+        self.password
     }
     pub fn into_userid(self) -> String {
-        return self.userid;
+        self.userid
     }
     pub fn userid(&self) -> &str {
-        return &self.userid;
+        &self.userid
     }
     pub fn password(&self) -> &Password {
-        return &self.password;
+        &self.password
     }
     pub fn isp(&self) -> IspType {
-        return self.isp;
+        self.isp
     }
 }

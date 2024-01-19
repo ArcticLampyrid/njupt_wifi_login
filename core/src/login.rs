@@ -19,11 +19,11 @@ const URL_GENERATE_204: &str = "http://connect.rom.miui.com/generate_204";
 const URL_AP_PORTAL: &str = "https://p.njupt.edu.cn/a79.htm";
 const ERROR_MSG_OFF_HOURS: &str = "Authentication Fail ErrCode=16";
 
-const NJUPT_AUTHENTICATION_PATTERN: Lazy<regex::Regex> = Lazy::new(|| {
+static NJUPT_AUTHENTICATION_PATTERN: Lazy<regex::Regex> = Lazy::new(|| {
     Regex::new("Authentication is required\\. Click <a href=\"(.*?)\">here</a> to open the authentication page\\.").unwrap()
 });
 
-const AP_INFO_PATTERN: Lazy<regex::Regex> = Lazy::new(|| Regex::new("v46ip='(.*?)'").unwrap());
+static AP_INFO_PATTERN: Lazy<regex::Regex> = Lazy::new(|| Regex::new("v46ip='(.*?)'").unwrap());
 
 #[derive(Debug)]
 pub struct ApInfo {

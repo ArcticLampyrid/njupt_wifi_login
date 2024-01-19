@@ -93,21 +93,18 @@ fn main() {
     // create the initial app state
     let mut initial_state = ConfiguratorState::default();
 
-    match read_my_config() {
-        Ok(config) => {
-            let isp_state = match config.credential.isp() {
-                IspType::EDU => IspTypeState::EDU,
-                IspType::CMCC => IspTypeState::CMCC,
-                IspType::CT => IspTypeState::CT,
-            };
-            initial_state.isp = isp_state;
-            initial_state.userid = config.credential.userid().to_string();
-            initial_state.password = config.credential.password().get().to_string();
-            if let Password::Basic(_) = config.credential.password() {
-                initial_state.password_scope = PasswordScopeState::Anywhere;
-            }
+    if let Ok(config) = read_my_config() {
+        let isp_state = match config.credential.isp() {
+            IspType::EDU => IspTypeState::EDU,
+            IspType::CMCC => IspTypeState::CMCC,
+            IspType::CT => IspTypeState::CT,
+        };
+        initial_state.isp = isp_state;
+        initial_state.userid = config.credential.userid().to_string();
+        initial_state.password = config.credential.password().get().to_string();
+        if let Password::Basic(_) = config.credential.password() {
+            initial_state.password_scope = PasswordScopeState::Anywhere;
         }
-        Err(_) => {}
     }
     initial_state.enabled = AUTO_LAUNCH.is_enabled().unwrap_or(false);
     initial_state.message = fl!("tips-not-effective-until-rebooting");

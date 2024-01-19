@@ -65,7 +65,7 @@ impl ToString for Password {
                 ))
                 .to_string();
                 let _ = LocalFree(HLOCAL(result.pbData as isize));
-                return result_str;
+                result_str
             },
         }
     }
@@ -105,7 +105,7 @@ impl Password {
             .ok()?;
             let result = result.assume_init();
             let result_bytes =
-                (&*ptr::slice_from_raw_parts(result.pbData, result.cbData as usize)).to_vec();
+                (*ptr::slice_from_raw_parts(result.pbData, result.cbData as usize)).to_vec();
             let _ = LocalFree(HLOCAL(result.pbData as isize));
             Ok(Password::DataProtection {
                 data_protection: result_bytes,

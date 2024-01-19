@@ -69,7 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let file_log = FileAppender::builder()
-        .encoder(Box::new(PatternEncoder::default()))
+        .encoder(Box::<PatternEncoder>::default())
         .build(LOG_PATH.as_path())
         .unwrap();
 
@@ -123,9 +123,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut last_check_at: Option<std::time::Instant> = None;
 
-    loop {
-        match rx.recv().await {
-            Some(ActionInfo::CheckAndLogin()) => {
+    while let Some(action) = rx.recv().await {
+        match action {
+            ActionInfo::CheckAndLogin() => {
                 {
                     // debounce
                     let check_at = std::time::Instant::now();
@@ -140,26 +140,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 info!("Start to check network status");
                 let network_status = get_network_status().await;
                 info!("Network status: {:?}", network_status);
-                match network_status {
-                    login::NetworkStatus::AuthenticationNJUPT(ap_info) => {
-                        info!("Start to login");
-                        match send_login_request(&my_config.credential, &ap_info).await {
-                            Ok(_) => {
-                                info!("Connected");
-                                OFF_HOURS_CACHE.lock().await.clear();
+                if let login::NetworkStatus::AuthenticationNJUPT(ap_info) = network_status {
+                    info!("Start to login");
+                    match send_login_request(&my_config.credential, &ap_info).await {
+                        Ok(_) => {
+                            info!("Connected");
+                            OFF_HOURS_CACHE.lock().await.clear();
+                        }
+                        Err(err) => {
+                            error!("Failed to connect: {}", err);
+                            if let WifiLoginError::OffHours() = err {
+                                OFF_HOURS_CACHE.lock().await.set();
                             }
-                            Err(err) => {
-                                error!("Failed to connect: {}", err);
-                                if let WifiLoginError::OffHours() = err {
-                                    OFF_HOURS_CACHE.lock().await.set();
-                                }
-                            }
-                        };
-                    }
-                    _ => {}
+                        }
+                    };
                 }
             }
-            None => break,
         }
     }
     Ok(())
