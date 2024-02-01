@@ -15,3 +15,4 @@ error-failed-to-encrypt-password = 错误：加密存储密码失败：{$details
 error-failed-to-write-config = 错误：写出配置失败：{$details}
 error-failed-to-set-auto-launch = 错误：修改自动启动设置失败：{$details}
 info-applied-successfully = 信息：应用成功。
+tips-password-scope = 提示：密码范围设置影响了用于存储密码的加密算法的密钥。选择“任何位置”时，账户密码可以在任何设备上被读取；选择“本地机器”时，将利用与设备ID相关联的信息作为密钥加密存储，使得仅在当前设备上能够解密存储在配置文件中的账户密码；选择“当前用户”时，则将采用与当前本地用户ID相关联的信息作为密钥加密存储，仅允许当前用户解密配置文件中存储的账户密码。

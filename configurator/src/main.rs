@@ -2,7 +2,8 @@
 mod i18n;
 use auto_launch::{AutoLaunch, AutoLaunchBuilder};
 use druid::widget::{
-    Align, Button, Checkbox, CrossAxisAlignment, Flex, FlexParams, Label, RadioGroup, TextBox,
+    Align, Button, Checkbox, CrossAxisAlignment, Flex, FlexParams, Label, LineBreaking, RadioGroup,
+    TextBox,
 };
 use druid::{AppLauncher, Data, Lens, Widget, WidgetExt, WindowDesc};
 use njupt_wifi_login_configuration::{
@@ -87,8 +88,8 @@ fn main() {
     // describe the main window
     let main_window = WindowDesc::new(build_root_widget())
         .title(WINDOW_TITLE)
-        .with_min_size((460.0, 320.0))
-        .window_size((460.0, 320.0));
+        .with_min_size((500.0, 380.0))
+        .window_size((500.0, 380.0));
 
     // create the initial app state
     let mut initial_state = ConfiguratorState::default();
@@ -116,7 +117,7 @@ fn main() {
 }
 
 fn build_root_widget() -> impl Widget<ConfiguratorState> {
-    let isp_label = Label::new(fl!("isp")).fix_width(100.0);
+    let isp_label = Label::new(fl!("isp")).fix_width(140.0);
     let isp_radio_group = RadioGroup::row(vec![
         (fl!("isp-edu"), IspTypeState::EDU),
         (fl!("isp-cmcc"), IspTypeState::CMCC),
@@ -132,7 +133,7 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
             FlexParams::new(1.0, CrossAxisAlignment::End),
         );
 
-    let userid_label = Label::new(fl!("user-id")).fix_width(100.0);
+    let userid_label = Label::new(fl!("user-id")).fix_width(140.0);
     let userid_text_box = TextBox::new()
         .expand_width()
         .lens(ConfiguratorState::userid);
@@ -144,7 +145,7 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
             FlexParams::new(1.0, CrossAxisAlignment::End),
         );
 
-    let password_label = Label::new(fl!("password")).fix_width(100.0);
+    let password_label = Label::new(fl!("password")).fix_width(140.0);
     let password_text_box = TextBox::new()
         .expand_width()
         .lens(ConfiguratorState::password);
@@ -156,7 +157,11 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
             FlexParams::new(1.0, CrossAxisAlignment::End),
         );
 
-    let password_scope_label = Label::new(fl!("password-scope")).fix_width(100.0);
+    let password_scope_label = Label::new(fl!("password-scope"));
+    let password_scope_tips_button =
+        Button::new("?").on_click(|_ctx, data: &mut ConfiguratorState, _env| {
+            data.message = fl!("tips-password-scope");
+        });
     let password_scope_radio_group = RadioGroup::row(vec![
         (fl!("password-scope-anywhere"), PasswordScopeState::Anywhere),
         (
@@ -171,7 +176,14 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
     .lens(ConfiguratorState::password_scope)
     .expand_width();
     let password_scope_flex = Flex::row()
-        .with_child(password_scope_label)
+        .with_child(
+            Flex::row()
+                .with_child(password_scope_label)
+                .with_default_spacer()
+                .with_child(password_scope_tips_button)
+                .align_left()
+                .fix_width(140.0),
+        )
         .with_default_spacer()
         .with_flex_child(
             password_scope_radio_group,
@@ -182,8 +194,12 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
         .lens(ConfiguratorState::enabled)
         .align_left();
 
-    let message_label =
-        Label::new(|data: &ConfiguratorState, _env: &_| data.message.clone()).align_left();
+    let message_label = Label::new(|data: &ConfiguratorState, _env: &_| data.message.clone())
+        .with_line_break_mode(LineBreaking::WordWrap)
+        .align_left()
+        .scroll()
+        .vertical()
+        .fix_height(100.0);
 
     let save_button = Button::new(fl!("save"))
         .on_click(|_ctx, data: &mut ConfiguratorState, _env| {
@@ -241,6 +257,6 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
         .with_default_spacer()
         .with_child(save_button);
 
-    // center the two widgets in the available space
+    // center the widgets in the available space
     Align::centered(layout)
 }

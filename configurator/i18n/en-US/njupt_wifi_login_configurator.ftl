@@ -15,3 +15,4 @@ error-failed-to-encrypt-password = Error: Failed to encrypt password: {$details}
 error-failed-to-write-config = Error: Failed to write config: {$details}
 error-failed-to-set-auto-launch = Error: Failed to modify AutoLaunch setting: {$details}
 info-applied-successfully = Info: Applied successfully.
+tips-password-scope = Tips: PasswordScope setting affects the key of the encryption algorithm used to store the password. When "Anywhere" is selected, the account password can be read on any device; when "LocalMachine" is selected, the information associated with the device ID is used as the key for password storage, making it possible to decrypt the account password stored in the configuration only on the current device; when "CurrentUser" is selected, the information associated with the current local user ID will be used as the key for password storage, allowing only the current user to decrypt the account password stored in the configuration.
