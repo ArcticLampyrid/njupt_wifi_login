@@ -30,3 +30,4 @@ error-not-running = Error: Not running.
 status-running = Status: Running
 status-stopped = Status: Stopped
 error-selected-password-scope-not-supported-by-launcher = Error: Selected password scope is not supported by {$launcher}.
+windows-service-launcher-name = Windows Service

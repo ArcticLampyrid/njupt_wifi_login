@@ -1,9 +1,12 @@
 mod desktop_launcher;
 mod launcher_trait;
+mod windows_service_launcher;
 use std::{env, ffi::OsString, io, path::PathBuf};
 
 pub use desktop_launcher::DesktopLauncher;
 pub use launcher_trait::Launcher;
+#[cfg(feature = "windows-service-mode")]
+pub use windows_service_launcher::WindowsServiceLauncher;
 
 pub fn get_core_path() -> Result<PathBuf, io::Error> {
     env::current_exe().map(|mut path| {

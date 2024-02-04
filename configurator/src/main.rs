@@ -22,6 +22,10 @@ static LAUNCHERS: Lazy<Vec<Box<dyn Launcher + Send + Sync>>> = Lazy::new(|| {
     if let Ok(launcher) = launcher::DesktopLauncher::new() {
         launchers.push(Box::new(launcher));
     }
+    #[cfg(feature = "windows-service-mode")]
+    if let Ok(launcher) = launcher::WindowsServiceLauncher::new() {
+        launchers.push(Box::new(launcher));
+    }
     launchers
 });
 static CONFIG_PATH: Lazy<PathBuf> = Lazy::new(|| {

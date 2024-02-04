@@ -30,3 +30,4 @@ error-not-running = 错误：程序不在运行状态。
 status-running = 状态：正在运行
 status-stopped = 状态：已停止
 error-selected-password-scope-not-supported-by-launcher = 错误：选择的密码范围不被 {$launcher} 支持。
+windows-service-launcher-name = Windows 服务
