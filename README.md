@@ -1,6 +1,12 @@
 # NJUPT WiFi Login
 A tool to help NJUPTer to connect the campus network conveniently.
 
+## Goals
+- User-unaware automatic login
+- Highly simulate manual operation
+- Proxy-friendly
+- Low privacy exposure outside of school networks
+
 ## How it works?
 It will listen for the network changed notifications and automatically do the authentication.
 
@@ -34,6 +40,15 @@ It will use no proxy during the authentication for the proxy may be not availabl
 It will use Google DNS Servers (in the white list of the firewall) internally to avoid dns not available during authentication.
 
 We write it meticulously with Rust, thus you are mostly not needed to worry about the cost of performance.
+
+## Privacy Concerns
+This tool is meticulous in design to lower the privacy exposure when connecting to non-NJUPT networks.
+
+Account information is only sent when the NJUPT AP Portal's certificate is valid, thus preventing account information from being stolen.
+
+Before certificate verification, the initial network traffic sent is a connectivity check to connect.rom.miui.com, which results in a DNS request and an HTTP plaintext request. In most cases, this is the only traffic leaked to an unknown network environment. Considering that all Xiaomi phones send similar connectivity check requests, this hardly reveals any information. 
+
+The worst-case scenario is that the adversary forges the result of the connectivity check and returns a redirect request that appears to come from the NJUPT AP Portal gateway. In this case, a DNS request to p.njupt.edu.cn is leaked, which may expose you as an NJUPT student. However, since the adversary cannot impersonate the NJUPT AP Portal (lacking the certificate), the account information will not be sent.
 
 ## License
 Licensed under [MIT license](LICENSE.txt).
