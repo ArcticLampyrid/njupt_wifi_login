@@ -6,46 +6,43 @@ use windows::Win32::{
 };
 
 #[must_use]
-pub struct NetworkConnectivityHintChangedHandle<'a, F>
-where
-    F: Fn(NL_NETWORK_CONNECTIVITY_HINT) + Sync,
-{
-    _func: &'a F,
+pub struct NetworkConnectivityHintChangedHandle<'a> {
     handle: HANDLE,
+    _func: Box<dyn Fn(NL_NETWORK_CONNECTIVITY_HINT) + Sync + 'a>,
 }
-impl<'a, F> NetworkConnectivityHintChangedHandle<'a, F>
-where
-    F: Fn(NL_NETWORK_CONNECTIVITY_HINT) + Sync,
-{
-    pub fn register(func: &'a F, initial_notification: bool) -> windows::core::Result<Self> {
+impl<'a> NetworkConnectivityHintChangedHandle<'a> {
+    pub fn register<F>(func: F, initial_notification: bool) -> windows::core::Result<Self>
+    where
+        F: Fn(NL_NETWORK_CONNECTIVITY_HINT) + Sync + 'a,
+    {
+        let func = Box::new(func);
         let mut handle = HANDLE::default();
         unsafe {
             NotifyNetworkConnectivityHintChange(
-                Some(Self::on_network_connectivity_hint_changed),
-                Some(func as *const F as *const c_void),
+                Some(Self::callback::<F>),
+                Some(&*func as *const F as *const c_void),
                 BOOLEAN::from(initial_notification),
                 ptr::addr_of_mut!(handle),
             )
             .ok()?;
         }
         Ok(Self {
-            _func: func,
             handle,
+            _func: func,
         })
     }
-    unsafe extern "system" fn on_network_connectivity_hint_changed(
+    unsafe extern "system" fn callback<F>(
         caller_context: *const c_void,
         connectivity_hint: NL_NETWORK_CONNECTIVITY_HINT,
-    ) {
+    ) where
+        F: Fn(NL_NETWORK_CONNECTIVITY_HINT) + Sync,
+    {
         let caller_context: &F = &*(caller_context as *const F);
         caller_context(connectivity_hint);
     }
 }
 
-impl<'a, F> Drop for NetworkConnectivityHintChangedHandle<'a, F>
-where
-    F: Fn(NL_NETWORK_CONNECTIVITY_HINT) + Sync,
-{
+impl<'a> Drop for NetworkConnectivityHintChangedHandle<'a> {
     fn drop(&mut self) {
         unsafe {
             let _ = CancelMibChangeNotify2(self.handle);
