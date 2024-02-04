@@ -13,3 +13,4 @@ serde_yaml = "0.9.22"
 i18n-embed = {version= "0.14.1", features = ["fluent-system", "desktop-requester"]}
 i18n-embed-fl = "0.7.0"
 rust-embed = "8.2.0"
+sysinfo = "0.30"
