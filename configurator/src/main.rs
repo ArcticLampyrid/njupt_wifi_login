@@ -22,7 +22,7 @@ static LAUNCHERS: Lazy<Vec<Box<dyn Launcher + Send + Sync>>> = Lazy::new(|| {
     if let Ok(launcher) = launcher::DesktopLauncher::new() {
         launchers.push(Box::new(launcher));
     }
-    #[cfg(feature = "windows-service-mode")]
+    #[cfg(all(feature = "windows-service-mode", target_os = "windows"))]
     if let Ok(launcher) = launcher::WindowsServiceLauncher::new() {
         launchers.push(Box::new(launcher));
     }
@@ -94,6 +94,7 @@ fn main() {
         initial_state.isp = isp_state;
         initial_state.userid = config.credential.userid().to_string();
         initial_state.password = config.credential.password().get().to_string();
+        #[allow(irrefutable_let_patterns)]
         if let Password::Basic(_) = config.credential.password() {
             initial_state.password_scope = PasswordScopeState::Anywhere;
         }

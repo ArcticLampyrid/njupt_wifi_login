@@ -20,7 +20,7 @@ use once_cell::sync::Lazy;
 use std::env;
 use std::path::PathBuf;
 mod windows_service_command;
-#[cfg(feature = "windows-service-mode")]
+#[cfg(all(feature = "windows-service-mode", target_os = "windows"))]
 use windows_service_command::{handle_service_command, ServiceCommand};
 static CONFIG_PATH: Lazy<PathBuf> = Lazy::new(|| {
     let mut path = env::current_exe().unwrap();
@@ -53,7 +53,7 @@ struct Args {
 #[derive(Subcommand, Clone, Debug)]
 pub enum Command {
     /// Windows service mode.
-    #[cfg(feature = "windows-service-mode")]
+    #[cfg(all(feature = "windows-service-mode", target_os = "windows"))]
     Service {
         #[clap(flatten)]
         args: ServiceCommand,
@@ -93,7 +93,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
     });
 
     match args.command {
-        #[cfg(feature = "windows-service-mode")]
+        #[cfg(all(feature = "windows-service-mode", target_os = "windows"))]
         Some(Command::Service { args }) => handle_service_command(args, my_config)?,
         _ => {
             let app = AppMain::new(my_config);

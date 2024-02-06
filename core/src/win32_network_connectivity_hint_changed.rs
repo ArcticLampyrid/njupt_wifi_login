@@ -1,3 +1,4 @@
+#![cfg(target_os = "windows")]
 use std::{ffi::c_void, ptr};
 use windows::Win32::{
     Foundation::{BOOLEAN, HANDLE},

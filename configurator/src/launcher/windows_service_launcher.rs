@@ -1,4 +1,4 @@
-#![cfg(feature = "windows-service-mode")]
+#![cfg(all(feature = "windows-service-mode", target_os = "windows"))]
 use njupt_wifi_login_configuration::password::PasswordScope;
 use std::path::PathBuf;
 use windows_service::{

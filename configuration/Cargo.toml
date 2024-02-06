@@ -9,7 +9,7 @@ serde_with = {version = "3", features = ["base64"]}
 serde_yaml = "0.9.22"
 thiserror = "1"
 
-[dependencies.windows]
+[target.'cfg(target_os = "windows")'.dependencies.windows]
 features = [
   "Win32_Foundation",
   "Win32_System_Memory",

@@ -1,7 +1,6 @@
 use crate::app_events::AppEvents;
 use crate::login::{self, get_network_status, send_login_request, WifiLoginError};
 use crate::off_hours_cache::OffHoursCache;
-use crate::win32_network_connectivity_hint_changed::NetworkConnectivityHintChangedHandle;
 use log::*;
 use njupt_wifi_login_configuration::login_config::LoginConfig;
 use std::sync::Arc;
@@ -9,10 +8,6 @@ use std::time::Duration;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
-use windows::Win32::Networking::WinSock::{
-    NetworkConnectivityLevelHintConstrainedInternetAccess, NetworkConnectivityLevelHintLocalAccess,
-    NL_NETWORK_CONNECTIVITY_HINT,
-};
 
 #[derive(Debug)]
 pub enum ActionInfo {
@@ -36,23 +31,24 @@ impl AppMain {
     ) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
-            let (tx, rx) = mpsc::unbounded_channel::<ActionInfo>();
-            let regular_check_handle = self.register_regular_check(tx.clone()).await?;
-            let connectivity_hint_listener_handle =
-                self.register_connectivity_hint_listener(tx).await?;
+            {
+                let (tx, rx) = mpsc::unbounded_channel::<ActionInfo>();
+                let regular_check_handle = self.register_regular_check(tx.clone()).await?;
+                #[cfg(target_os = "windows")]
+                let _win32_connectivity_hint_listener_handle =
+                    self.register_win32_connectivity_hint_listener(tx).await?;
 
-            events.on_started();
-            info!("Started");
-            let event_loop_handle = tokio::spawn(async move { self.event_loop(rx).await });
-            events.register_abort_handle(event_loop_handle.abort_handle());
-            let _ = event_loop_handle.await;
-            info!("Stopping");
-            events.on_stopping();
+                events.on_started();
+                info!("Started");
+                let event_loop_handle = tokio::spawn(async move { self.event_loop(rx).await });
+                events.register_abort_handle(event_loop_handle.abort_handle());
+                let _ = event_loop_handle.await;
+                info!("Stopping");
+                events.on_stopping();
 
-            drop(connectivity_hint_listener_handle);
-            regular_check_handle.abort();
-            let _ = regular_check_handle.await;
-
+                regular_check_handle.abort();
+                let _ = regular_check_handle.await;
+            }
             events.on_stopped();
 
             Ok(())
@@ -81,13 +77,21 @@ impl AppMain {
         Ok(join_handle)
     }
 
-    async fn register_connectivity_hint_listener(
+    #[cfg(target_os = "windows")]
+    async fn register_win32_connectivity_hint_listener(
         &self,
         tx: UnboundedSender<ActionInfo>,
     ) -> Result<
-        NetworkConnectivityHintChangedHandle<'static>,
+        crate::win32_network_connectivity_hint_changed::NetworkConnectivityHintChangedHandle<
+            'static,
+        >,
         Box<dyn std::error::Error + Sync + Send>,
     > {
+        use crate::win32_network_connectivity_hint_changed::NetworkConnectivityHintChangedHandle;
+        use windows::Win32::Networking::WinSock::{
+            NetworkConnectivityLevelHintConstrainedInternetAccess,
+            NetworkConnectivityLevelHintLocalAccess, NL_NETWORK_CONNECTIVITY_HINT,
+        };
         let listener = move |connectivity_hint: NL_NETWORK_CONNECTIVITY_HINT| {
             info!(
                 "ConnectivityLevel = {}",

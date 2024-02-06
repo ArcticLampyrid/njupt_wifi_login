@@ -1,4 +1,4 @@
-#![cfg(feature = "windows-service-mode")]
+#![cfg(all(feature = "windows-service-mode", target_os = "windows"))]
 use std::{
     env,
     ffi::{OsStr, OsString},

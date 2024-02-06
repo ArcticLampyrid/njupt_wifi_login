@@ -5,7 +5,7 @@ use std::{env, ffi::OsString, io, path::PathBuf};
 
 pub use desktop_launcher::DesktopLauncher;
 pub use launcher_trait::Launcher;
-#[cfg(feature = "windows-service-mode")]
+#[cfg(all(feature = "windows-service-mode", target_os = "windows"))]
 pub use windows_service_launcher::WindowsServiceLauncher;
 
 pub fn get_core_path() -> Result<PathBuf, io::Error> {
