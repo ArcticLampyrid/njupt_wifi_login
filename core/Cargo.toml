@@ -24,6 +24,7 @@ thiserror = "1"
 tokio = {version = "1", features = ["full"]}
 trust-dns-resolver = "0.22.0"
 windows-service = { version = "0.6.0", optional = true }
+futures-util = "0.3"
 
 [target.'cfg(target_os = "windows")'.dependencies.windows]
 features = [
@@ -32,3 +33,10 @@ features = [
   "Win32_NetworkManagement_IpHelper",
 ]
 version = "0.48"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+rtnetlink = "0.14"
+netlink-sys = "0.8"
+netlink-packet-core = "0.7"
+netlink-packet-route = "0.19"

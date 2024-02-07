@@ -36,7 +36,12 @@ impl AppMain {
                 let regular_check_handle = self.register_regular_check(tx.clone()).await?;
                 #[cfg(target_os = "windows")]
                 let _win32_connectivity_hint_listener_handle =
-                    self.register_win32_connectivity_hint_listener(tx).await?;
+                    self.register_win32_connectivity_hint_listener(tx).await?; // there is an initial notification after registration
+                #[cfg(not(target_os = "windows"))]
+                let _ = tx.send(ActionInfo::CheckAndLogin()); // initial check
+                #[cfg(target_os = "linux")]
+                let linux_network_listener_handle =
+                    self.register_linux_network_listener(tx).await?;
 
                 events.on_started();
                 info!("Started");
@@ -48,6 +53,12 @@ impl AppMain {
 
                 regular_check_handle.abort();
                 let _ = regular_check_handle.await;
+
+                #[cfg(target_os = "linux")]
+                {
+                    linux_network_listener_handle.abort();
+                    linux_network_listener_handle.join().await;
+                }
             }
             events.on_stopped();
 
@@ -105,6 +116,21 @@ impl AppMain {
             }
         };
         let handle = NetworkConnectivityHintChangedHandle::register(listener, true)?;
+        Ok(handle)
+    }
+
+    #[cfg(target_os = "linux")]
+    async fn register_linux_network_listener(
+        &self,
+        tx: UnboundedSender<ActionInfo>,
+    ) -> Result<
+        crate::linux_network_listener::LinuxNetworkListenerHandle,
+        Box<dyn std::error::Error + Sync + Send>,
+    > {
+        use crate::linux_network_listener::LinuxNetworkListenerHandle;
+        let handle = LinuxNetworkListenerHandle::register(move || {
+            tx.send(ActionInfo::CheckAndLogin()).unwrap();
+        })?;
         Ok(handle)
     }
 

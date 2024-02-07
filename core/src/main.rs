@@ -3,6 +3,7 @@ mod app_events;
 mod app_main;
 mod app_service_events;
 mod dns_resolver;
+mod linux_network_listener;
 mod login;
 mod off_hours_cache;
 mod win32_network_connectivity_hint_changed;
