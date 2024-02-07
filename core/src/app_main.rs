@@ -71,19 +71,27 @@ impl AppMain {
         &self,
         tx: UnboundedSender<ActionInfo>,
     ) -> Result<JoinHandle<()>, Box<dyn std::error::Error + Sync + Send>> {
+        let mut check_interval = Duration::from_secs(self.config.check_interval);
+        if check_interval.is_zero() {
+            info!("Regular check is disabled");
+            return Ok(tokio::spawn(async {}));
+        }
+        if check_interval < Duration::from_secs(60) {
+            warn!("Regular check interval is too short, fallback to 1 minute");
+            check_interval = Duration::from_secs(60);
+        }
         let off_hours_cache = self.off_hours_cache.clone();
         let join_handle = tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_secs(20 * 60)).await;
+            tokio::time::sleep(check_interval).await;
             while !tx.is_closed() {
                 let expiration = off_hours_cache.lock().await.expiration();
                 if expiration.is_zero() {
                     if tx.send(ActionInfo::CheckAndLogin()).is_err() {
                         break;
                     }
-                    tokio::time::sleep(Duration::from_secs(20 * 60)).await;
+                    tokio::time::sleep(check_interval).await;
                 } else {
-                    tokio::time::sleep(std::cmp::min(expiration, Duration::from_secs(20 * 60)))
-                        .await;
+                    tokio::time::sleep(std::cmp::min(expiration, check_interval)).await;
                 }
             }
         });

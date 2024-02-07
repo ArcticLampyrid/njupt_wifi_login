@@ -61,6 +61,7 @@ struct ConfiguratorState {
     enabled: bool,
     message: String,
     running: bool,
+    check_interval: String,
 }
 
 fn read_my_config() -> Result<LoginConfig, Box<dyn Error>> {
@@ -79,8 +80,8 @@ fn main() {
     // describe the main window
     let main_window = WindowDesc::new(build_root_widget())
         .title(WINDOW_TITLE)
-        .with_min_size((500.0, 400.0))
-        .window_size((500.0, 400.0));
+        .with_min_size((550.0, 440.0))
+        .window_size((550.0, 440.0));
 
     // create the initial app state
     let mut initial_state = ConfiguratorState::default();
@@ -98,6 +99,7 @@ fn main() {
         if let Password::Basic(_) = config.credential.password() {
             initial_state.password_scope = PasswordScopeState::Anywhere;
         }
+        initial_state.check_interval = config.check_interval.to_string();
     }
     initial_state.enabled = false;
     initial_state.running = false;
@@ -128,7 +130,7 @@ fn main() {
 }
 
 fn build_root_widget() -> impl Widget<ConfiguratorState> {
-    let isp_label = Label::new(fl!("isp")).fix_width(140.0);
+    let isp_label = Label::new(fl!("isp")).fix_width(180.0);
     let isp_radio_group = RadioGroup::row(vec![
         (fl!("isp-edu"), IspTypeState::EDU),
         (fl!("isp-cmcc"), IspTypeState::CMCC),
@@ -144,7 +146,7 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
             FlexParams::new(1.0, CrossAxisAlignment::End),
         );
 
-    let userid_label = Label::new(fl!("user-id")).fix_width(140.0);
+    let userid_label = Label::new(fl!("user-id")).fix_width(180.0);
     let userid_text_box = TextBox::new()
         .expand_width()
         .lens(ConfiguratorState::userid);
@@ -156,7 +158,7 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
             FlexParams::new(1.0, CrossAxisAlignment::End),
         );
 
-    let password_label = Label::new(fl!("password")).fix_width(140.0);
+    let password_label = Label::new(fl!("password")).fix_width(180.0);
     let password_text_box = TextBox::new()
         .expand_width()
         .lens(ConfiguratorState::password);
@@ -193,7 +195,7 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
                 .with_default_spacer()
                 .with_child(password_scope_tips_button)
                 .align_left()
-                .fix_width(140.0),
+                .fix_width(180.0),
         )
         .with_default_spacer()
         .with_flex_child(
@@ -201,7 +203,30 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
             FlexParams::new(1.0, CrossAxisAlignment::End),
         );
 
-    let launcher_label = Label::new(fl!("launcher")).fix_width(140.0);
+    let check_interval_label = Label::new(fl!("check-interval"));
+    let check_interval_tips_button =
+        Button::new("?").on_click(|_ctx, data: &mut ConfiguratorState, _env| {
+            data.message = fl!("tips-check-interval");
+        });
+    let check_interval_text_box = TextBox::new()
+        .expand_width()
+        .lens(ConfiguratorState::check_interval);
+    let check_interval_flex = Flex::row()
+        .with_child(
+            Flex::row()
+                .with_child(check_interval_label)
+                .with_default_spacer()
+                .with_child(check_interval_tips_button)
+                .align_left()
+                .fix_width(180.0),
+        )
+        .with_default_spacer()
+        .with_flex_child(
+            check_interval_text_box,
+            FlexParams::new(1.0, CrossAxisAlignment::End),
+        );
+
+    let launcher_label = Label::new(fl!("launcher")).fix_width(180.0);
     let launcher_radio_group = RadioGroup::row(
         LAUNCHERS
             .iter()
@@ -300,6 +325,7 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
             let password = password.unwrap();
             let config = LoginConfig {
                 credential: Credential::new(data.userid.clone(), password, isp),
+                check_interval: data.check_interval.parse().unwrap_or(20 * 60),
             };
             if let Err(e) = write_my_config(&config) {
                 data.message = fl!("error-failed-to-write-config", details = e.to_string());
@@ -352,6 +378,8 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
         .with_child(password_flex)
         .with_default_spacer()
         .with_child(password_scope_flex)
+        .with_default_spacer()
+        .with_child(check_interval_flex)
         .with_default_spacer()
         .with_child(launcher_flex)
         .with_default_spacer()
