@@ -47,7 +47,9 @@ impl AppMain {
                 info!("Started");
                 let event_loop_handle = tokio::spawn(async move { self.event_loop(rx).await });
                 events.register_abort_handle(event_loop_handle.abort_handle());
-                let _ = event_loop_handle.await;
+                if let Ok(Err(err)) = event_loop_handle.await {
+                    error!("Event loop error: {}", err);
+                }
                 info!("Stopping");
                 events.on_stopping();
 
