@@ -1,11 +1,14 @@
 #![windows_subsystem = "windows"]
+mod custom_font_scope;
 mod i18n;
 mod launcher;
+use custom_font_scope::CustomFontScope;
 use druid::widget::{
     Align, Button, Checkbox, CrossAxisAlignment, Flex, FlexParams, Label, LineBreaking, RadioGroup,
     TextBox,
 };
 use druid::{AppLauncher, Data, Lens, Widget, WidgetExt, WindowDesc};
+use include_bytes_zstd::include_bytes_zstd;
 use launcher::Launcher;
 use njupt_wifi_login_configuration::{
     credential::{Credential, IspType},
@@ -78,10 +81,15 @@ fn write_my_config(d: &LoginConfig) -> Result<(), Box<dyn Error>> {
 
 fn main() {
     // describe the main window
-    let main_window = WindowDesc::new(build_root_widget())
-        .title(WINDOW_TITLE)
-        .with_min_size((550.0, 440.0))
-        .window_size((550.0, 440.0));
+    let main_window = WindowDesc::new(CustomFontScope::new(build_root_widget(), |text| {
+        use druid::piet::Text;
+        use druid::text::FontFamily;
+        let _ = text.load_font(include_bytes_zstd!("../fonts/MiSans-Regular.ttf", 22).as_ref());
+        text.font_family("MiSans").unwrap_or(FontFamily::SYSTEM_UI)
+    }))
+    .title(WINDOW_TITLE)
+    .with_min_size((550.0, 440.0))
+    .window_size((550.0, 440.0));
 
     // create the initial app state
     let mut initial_state = ConfiguratorState::default();
