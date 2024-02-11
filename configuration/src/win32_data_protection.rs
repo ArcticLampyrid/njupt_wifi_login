@@ -56,7 +56,7 @@ impl Win32ProtectedData {
             Ok(Self { data: result_bytes })
         }
     }
-    pub fn unprotect(&self) -> Vec<u8> {
+    pub fn unprotect(&self) -> windows::core::Result<Vec<u8>> {
         unsafe {
             let source = CRYPT_INTEGER_BLOB {
                 cbData: self.data.len() as u32,
@@ -71,12 +71,13 @@ impl Win32ProtectedData {
                 None,
                 0,
                 result.as_mut_ptr(),
-            );
+            )
+            .ok()?;
             let result = result.assume_init();
             let result_bytes =
                 std::slice::from_raw_parts(result.pbData, result.cbData as usize).to_owned();
             let _ = LocalFree(HLOCAL(result.pbData as isize));
-            result_bytes
+            Ok(result_bytes)
         }
     }
 }

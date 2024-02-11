@@ -1,13 +1,15 @@
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use std::borrow::Cow;
+use std::{borrow::Cow, string::FromUtf8Error};
 use thiserror::Error;
 
 #[cfg(target_os = "windows")]
 use crate::win32_data_protection::Win32ProtectedData;
 
 #[cfg(not(target_os = "windows"))]
-use crate::local_machine_data_protection::LocalMachineDataProtection;
+use crate::local_machine_data_protection::{
+    LocalMachineDataProtection, LocalMachineDataProtectionError,
+};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum PasswordScope {
@@ -39,24 +41,16 @@ pub enum PasswordError {
     Win32CryptographyError(#[from] windows::core::Error),
     #[error("scope not supported")]
     ScopeNotSupported(PasswordScope),
+    #[error("from utf8 error: {0}")]
+    FromUtf8Error(#[from] FromUtf8Error),
     #[cfg(not(target_os = "windows"))]
     #[error("local machine cryptography error: {0}")]
-    LocalMachineCryptographyError(Box<dyn std::error::Error>),
+    LocalMachineCryptographyError(#[from] LocalMachineDataProtectionError),
 }
 
 impl ToString for Password {
     fn to_string(&self) -> String {
-        match self {
-            Password::Basic(s) => s.clone(),
-            #[cfg(target_os = "windows")]
-            Password::DataProtection { data_protection } => {
-                String::from_utf8(data_protection.unprotect()).unwrap_or_default()
-            }
-            #[cfg(not(target_os = "windows"))]
-            Password::LocalMachineDataProtection { data_protection } => {
-                String::from_utf8(data_protection.unprotect()).unwrap_or_default()
-            }
-        }
+        self.get().unwrap_or_default().to_string()
     }
 }
 
@@ -78,19 +72,24 @@ impl Password {
             }),
             #[cfg(not(target_os = "windows"))]
             PasswordScope::LocalMachine => Ok(Password::LocalMachineDataProtection {
-                data_protection: LocalMachineDataProtection::protect(s.as_bytes())
-                    .map_err(|e| PasswordError::LocalMachineCryptographyError(e))?,
+                data_protection: LocalMachineDataProtection::protect(s.as_bytes())?,
             }),
             #[allow(unreachable_patterns)]
             _ => Err(PasswordError::ScopeNotSupported(scope)),
         }
     }
 
-    pub fn get(&self) -> Cow<'_, str> {
+    pub fn get(&self) -> Result<Cow<'_, str>, PasswordError> {
         match &self {
-            Password::Basic(s) => Cow::Borrowed(s),
-            #[allow(unreachable_patterns)]
-            _ => Cow::Owned(self.to_string()),
+            Password::Basic(s) => Ok(Cow::Borrowed(s)),
+            #[cfg(target_os = "windows")]
+            Password::DataProtection { data_protection } => {
+                Ok(Cow::Owned(String::from_utf8(data_protection.unprotect()?)?))
+            }
+            #[cfg(not(target_os = "windows"))]
+            Password::LocalMachineDataProtection { data_protection } => {
+                Ok(Cow::Owned(String::from_utf8(data_protection.unprotect()?)?))
+            }
         }
     }
 }

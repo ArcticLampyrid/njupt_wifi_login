@@ -102,7 +102,7 @@ fn main() {
         };
         initial_state.isp = isp_state;
         initial_state.userid = config.credential.userid().to_string();
-        initial_state.password = config.credential.password().get().to_string();
+        initial_state.password = config.credential.password().to_string();
         #[allow(irrefutable_let_patterns)]
         if let Password::Basic(_) = config.credential.password() {
             initial_state.password_scope = PasswordScopeState::Anywhere;

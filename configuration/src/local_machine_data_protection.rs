@@ -6,6 +6,7 @@ use hex::{FromHex, ToHex};
 use machine_uid::machine_id::get_machine_id;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use thiserror::Error;
 
 #[derive(Debug)]
 pub struct LocalMachineDataProtection {
@@ -13,30 +14,49 @@ pub struct LocalMachineDataProtection {
     secret: Vec<u8>,
 }
 
+#[derive(Error, Debug)]
+pub enum LocalMachineDataProtectionError {
+    #[error("machine id error: {message}")]
+    MachineIdError { message: String },
+    #[error("aead error")]
+    AeadError,
+}
+
 impl LocalMachineDataProtection {
-    pub fn protect(s: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
-        let machine_id = Sha256::digest(get_machine_id()?.into_bytes());
+    pub fn protect(s: &[u8]) -> Result<Self, LocalMachineDataProtectionError> {
+        let machine_id = Sha256::digest(
+            get_machine_id()
+                .map_err(|e| LocalMachineDataProtectionError::MachineIdError {
+                    message: e.to_string(),
+                })?
+                .into_bytes(),
+        );
         let cipher = ChaCha20Poly1305::new(GenericArray::from_slice(machine_id.as_ref()));
         let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
-        let ciphertext = cipher.encrypt(&nonce, s).map_err(|e| e.to_string())?;
+        let ciphertext = cipher
+            .encrypt(&nonce, s)
+            .map_err(|_| LocalMachineDataProtectionError::AeadError)?;
         Ok(Self {
             nonce: nonce.to_vec(),
             secret: ciphertext.to_vec(),
         })
     }
 
-    pub fn unprotect(&self) -> Vec<u8> {
-        let machine_id = match get_machine_id() {
-            Ok(id) => Sha256::digest(id),
-            Err(_) => return Vec::new(),
-        };
+    pub fn unprotect(&self) -> Result<Vec<u8>, LocalMachineDataProtectionError> {
+        let machine_id = Sha256::digest(
+            get_machine_id()
+                .map_err(|e| LocalMachineDataProtectionError::MachineIdError {
+                    message: e.to_string(),
+                })?
+                .into_bytes(),
+        );
         let cipher = ChaCha20Poly1305::new(GenericArray::from_slice(machine_id.as_ref()));
         cipher
             .decrypt(
                 GenericArray::from_slice(&self.nonce),
                 Payload::from(self.secret.as_ref()),
             )
-            .unwrap_or_else(|_| Vec::new())
+            .map_err(|_| LocalMachineDataProtectionError::AeadError)
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::dns_resolver::CustomTrustDnsResolver;
 use log::*;
-use njupt_wifi_login_configuration::credential::Credential;
+use njupt_wifi_login_configuration::{credential::Credential, password::PasswordError};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use reqwest::redirect::Policy;
@@ -48,6 +48,8 @@ pub enum WifiLoginError {
     OffHours(),
     #[error("authentication server rejected: {0}")]
     ServerRejected(String),
+    #[error("failed to get password: {0}")]
+    PasswordError(#[from] PasswordError),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -130,7 +132,7 @@ pub async fn send_login_request(
 ) -> Result<(), WifiLoginError> {
     let url = "https://p.njupt.edu.cn:802/eportal/portal/login";
     let ddddd = format!(",0,{}", credential.derive_account());
-    let upass = credential.password().get();
+    let upass = credential.password().get()?;
     let params = [
         ("callback", "dr1003"),
         ("login_method", "1"),
