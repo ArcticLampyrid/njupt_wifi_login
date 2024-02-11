@@ -49,8 +49,8 @@ pub enum IspTypeState {
 #[derive(PartialEq, Eq, Debug, Clone, Copy, Data, Default)]
 pub enum PasswordScopeState {
     Anywhere,
-    LocalMachine,
     #[default]
+    LocalMachine,
     CurrentUser,
 }
 
@@ -117,14 +117,10 @@ fn main() {
             initial_state.enabled = true;
             initial_state.running = launcher.is_running().unwrap_or(false);
             initial_state.launcher_index = index;
-            if initial_state.password_scope == PasswordScopeState::CurrentUser
-                && !launcher.is_password_scope_supported(&PasswordScope::CurrentUser)
+            if initial_state.password_scope == PasswordScopeState::LocalMachine
+                && !launcher.is_password_scope_supported(&PasswordScope::LocalMachine)
             {
-                if launcher.is_password_scope_supported(&PasswordScope::LocalMachine) {
-                    initial_state.password_scope = PasswordScopeState::LocalMachine;
-                } else {
-                    initial_state.password_scope = PasswordScopeState::Anywhere;
-                }
+                initial_state.password_scope = PasswordScopeState::Anywhere;
             }
             break;
         }
