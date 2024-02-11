@@ -6,6 +6,9 @@ use thiserror::Error;
 #[cfg(target_os = "windows")]
 use crate::win32_data_protection::Win32ProtectedData;
 
+#[cfg(not(target_os = "windows"))]
+use crate::local_machine_data_protection::LocalMachineDataProtection;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub enum PasswordScope {
     Anywhere,
@@ -23,6 +26,10 @@ pub enum Password {
         #[serde_as(as = "serde_with::base64::Base64")]
         data_protection: Win32ProtectedData,
     },
+    #[cfg(not(target_os = "windows"))]
+    LocalMachineDataProtection {
+        data_protection: LocalMachineDataProtection,
+    },
 }
 
 #[derive(Error, Debug)]
@@ -32,6 +39,9 @@ pub enum PasswordError {
     Win32CryptographyError(#[from] windows::core::Error),
     #[error("scope not supported")]
     ScopeNotSupported(PasswordScope),
+    #[cfg(not(target_os = "windows"))]
+    #[error("local machine cryptography error: {0}")]
+    LocalMachineCryptographyError(Box<dyn std::error::Error>),
 }
 
 impl ToString for Password {
@@ -40,6 +50,10 @@ impl ToString for Password {
             Password::Basic(s) => s.clone(),
             #[cfg(target_os = "windows")]
             Password::DataProtection { data_protection } => {
+                String::from_utf8(data_protection.unprotect()).unwrap_or_default()
+            }
+            #[cfg(not(target_os = "windows"))]
+            Password::LocalMachineDataProtection { data_protection } => {
                 String::from_utf8(data_protection.unprotect()).unwrap_or_default()
             }
         }
@@ -61,6 +75,11 @@ impl Password {
             #[cfg(target_os = "windows")]
             PasswordScope::CurrentUser => Ok(Password::DataProtection {
                 data_protection: Win32ProtectedData::protect_for_current_user(s.as_bytes())?,
+            }),
+            #[cfg(not(target_os = "windows"))]
+            PasswordScope::LocalMachine => Ok(Password::LocalMachineDataProtection {
+                data_protection: LocalMachineDataProtection::protect(s.as_bytes())
+                    .map_err(|e| PasswordError::LocalMachineCryptographyError(e))?,
             }),
             #[allow(unreachable_patterns)]
             _ => Err(PasswordError::ScopeNotSupported(scope)),
