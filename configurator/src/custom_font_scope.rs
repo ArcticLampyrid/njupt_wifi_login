@@ -52,29 +52,29 @@ impl<T: Data, W: Widget<T>, F: FnOnce(&mut PietText) -> FontFamily> Widget<T>
     for CustomFontScope<T, W, F>
 {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
-        let new_env = self.edit_env(&mut ctx.text(), env);
+        let new_env = self.edit_env(ctx.text(), env);
         self.child.event(ctx, event, data, &new_env)
     }
 
     fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &T, env: &Env) {
-        let new_env = self.edit_env(&mut ctx.text(), env);
+        let new_env = self.edit_env(ctx.text(), env);
         self.child.lifecycle(ctx, event, data, &new_env)
     }
     fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &T, data: &T, env: &Env) {
-        let new_env = self.edit_env(&mut ctx.text(), env);
+        let new_env = self.edit_env(ctx.text(), env);
         self.child.update(ctx, data, &new_env);
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {
         bc.debug_check("CustomFontScope");
-        let new_env = self.edit_env(&mut ctx.text(), env);
+        let new_env = self.edit_env(ctx.text(), env);
         let size = self.child.layout(ctx, bc, data, &new_env);
         self.child.set_origin(ctx, Point::ORIGIN);
         size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
-        let new_env = self.edit_env(&mut ctx.text(), env);
+        let new_env = self.edit_env(ctx.text(), env);
         self.child.paint(ctx, data, &new_env);
     }
 
