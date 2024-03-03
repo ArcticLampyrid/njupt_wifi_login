@@ -28,11 +28,12 @@ It will listen for the network changed notifications and automatically do the au
 3. Config to run `njupt_wifi_login` at startup and it will automatically do the rest.
 
 ## Requirements
-Currently it's Windows-only since the author doesn't use Linux in desktop environments. 
+Supported Platforms:
 
-For those who may be interested in Linux support, try to use `NETLINK_ROUTE` to implement the listener. The cargo package [`rtnetlink`](https://github.com/little-dude/netlink/tree/master/rtnetlink) may be helpful. 
+- Windows 10 or later
+- Linux (may need to build from source)
 
-PRs for narrowing the limitation is welcome.
+Feel free to open an issue if you want to use it on other platforms.
 
 ## Remarks
 It will use no proxy during the authentication for the proxy may be not available until the network is logged in.
