@@ -5,14 +5,24 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use reqwest::redirect::Policy;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    sync::Arc,
+};
 use thiserror::Error;
-use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
+use trust_dns_resolver::config::{NameServerConfig, Protocol, ResolverConfig, ResolverOpts};
 
 static DNS_RESOLVER: Lazy<Arc<CustomTrustDnsResolver>> = Lazy::new(|| {
-    Arc::new(
-        CustomTrustDnsResolver::new(ResolverConfig::google(), ResolverOpts::default()).unwrap(),
-    )
+    let mut config = ResolverConfig::new();
+    config.add_name_server(NameServerConfig::new(
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 53),
+        Protocol::Udp,
+    ));
+    config.add_name_server(NameServerConfig::new(
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(114, 114, 114, 114)), 53),
+        Protocol::Udp,
+    ));
+    Arc::new(CustomTrustDnsResolver::new(config, ResolverOpts::default()).unwrap())
 });
 
 const URL_GENERATE_204: &str = "http://connect.rom.miui.com/generate_204";
