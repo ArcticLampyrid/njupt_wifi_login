@@ -1,0 +1,96 @@
+name: Deploy
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  generate-release-notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: latest
+      - run: npx changelogithub -d
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+  deploy-win:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: windows-latest
+    needs: 
+    - generate-release-notes
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - name: Build (Release)
+      shell: pwsh
+      run: cargo build --release --verbose
+    - name: Package
+      shell: pwsh
+      run: |
+        $version = $env:GITHUB_REF.replace('refs/tags/', '')
+        $unpacked_dir = "unpacked/njupt_wifi_login"
+        New-Item -ItemType Directory -Force -Path $unpacked_dir
+        Copy-Item -Path "target/release/*.exe" -Destination $unpacked_dir
+        New-Item -ItemType Directory -Force -Path "release"
+        7z a -mx=9 -ms=on "release\njupt_wifi_login-${version}-win-x86_64.7z" "unpacked\*"
+    - name: Release (GitHub)
+      uses: ncipollo/release-action@v1
+      with:
+        allowUpdates: true
+        draft: true
+        omitBody: true
+        artifacts: "release/*"
+  
+  deploy-linux:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-20.04
+    needs: 
+    - generate-release-notes
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - name: Install libgtk
+      run: sudo apt-get install libgtk-3-dev
+    - name: Build (Release)
+      run: cargo build --release --verbose
+    - name: Package
+      run: |
+        version=$(echo $GITHUB_REF | sed 's/refs\/tags\///')
+        unpacked_dir=unpacked/njupt_wifi_login
+        mkdir -p $unpacked_dir
+        cp target/release/njupt_wifi_login $unpacked_dir
+        cp target/release/njupt_wifi_login_configurator $unpacked_dir
+        mkdir -p release
+        tar -czf release/njupt_wifi_login-${version}-linux-x86_64.tar.gz -C unpacked .
+    - name: Release (GitHub)
+      uses: ncipollo/release-action@v1
+      with:
+        allowUpdates: true
+        draft: true
+        omitBody: true
+        artifacts: "release/*"
+
+  publish-release:
+    runs-on: ubuntu-20.04
+    needs:
+    - deploy-win
+    - deploy-linux
+    steps:
+      - name: Release (GitHub)
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          draft: false
+          omitBody: true
