@@ -1,16 +1,13 @@
 use hyper::client::connect::dns::Name;
 use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 use trust_dns_resolver::error::ResolveError;
-use trust_dns_resolver::{
-    lookup_ip::LookupIpIntoIter, AsyncResolver, TokioConnection, TokioConnectionProvider,
-    TokioHandle,
-};
+use trust_dns_resolver::{lookup_ip::LookupIpIntoIter, TokioAsyncResolver};
 
 use reqwest::dns::{Addrs, Resolve, Resolving};
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-type SharedResolver = Arc<AsyncResolver<TokioConnection, TokioConnectionProvider>>;
+type SharedResolver = Arc<TokioAsyncResolver>;
 
 #[derive(Debug, Clone)]
 pub struct CustomTrustDnsResolver {
@@ -27,7 +24,7 @@ impl CustomTrustDnsResolver {
         options: ResolverOpts,
     ) -> Result<CustomTrustDnsResolver, ResolveError> {
         Ok(CustomTrustDnsResolver {
-            shared: Arc::new(AsyncResolver::new(config, options, TokioHandle)?),
+            shared: Arc::new(TokioAsyncResolver::tokio(config, options)),
         })
     }
 }
