@@ -8,10 +8,12 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 type SharedResolver = Arc<TokioAsyncResolver>;
+type SharedFallback = Arc<Box<dyn Fn(&Name) -> Option<Addrs> + Send + Sync>>;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct CustomTrustDnsResolver {
     shared: SharedResolver,
+    fallback: SharedFallback,
 }
 
 struct SocketAddrs {
@@ -19,12 +21,17 @@ struct SocketAddrs {
 }
 
 impl CustomTrustDnsResolver {
-    pub fn new(
+    pub fn new<F>(
         config: ResolverConfig,
         options: ResolverOpts,
-    ) -> Result<CustomTrustDnsResolver, ResolveError> {
+        fallback: F,
+    ) -> Result<CustomTrustDnsResolver, ResolveError>
+    where
+        F: Fn(&Name) -> Option<Addrs> + Send + Sync + 'static,
+    {
         Ok(CustomTrustDnsResolver {
             shared: Arc::new(TokioAsyncResolver::tokio(config, options)),
+            fallback: Arc::new(Box::new(fallback)),
         })
     }
 }
@@ -32,12 +39,27 @@ impl CustomTrustDnsResolver {
 impl Resolve for CustomTrustDnsResolver {
     fn resolve(&self, name: Name) -> Resolving {
         let shared = self.shared.clone();
+        let fallback = self.fallback.clone();
         Box::pin(async move {
-            let lookup = shared.lookup_ip(name.as_str()).await?;
-            let addrs: Addrs = Box::new(SocketAddrs {
-                iter: lookup.into_iter(),
-            });
-            Ok(addrs)
+            match shared.lookup_ip(name.as_str()).await {
+                Ok(lookup) => {
+                    let addrs: Addrs = Box::new(SocketAddrs {
+                        iter: lookup.into_iter(),
+                    });
+                    Ok(addrs)
+                }
+                Err(err) => match fallback(&name) {
+                    Some(addrs) => {
+                        log::error!(
+                            "Fallback addrs for {} is used due to {}",
+                            name.as_str(),
+                            err
+                        );
+                        Ok(addrs)
+                    }
+                    None => Err(err.into()),
+                },
+            }
         })
     }
 }

@@ -1,9 +1,10 @@
 use crate::dns_resolver::CustomTrustDnsResolver;
+use hyper::client::connect::dns::Name;
 use log::*;
 use njupt_wifi_login_configuration::{credential::Credential, password::PasswordError};
 use once_cell::sync::Lazy;
 use regex::Regex;
-use reqwest::redirect::Policy;
+use reqwest::{dns::Addrs, redirect::Policy};
 use serde::{Deserialize, Serialize};
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -35,11 +36,22 @@ static DNS_RESOLVER: Lazy<Arc<CustomTrustDnsResolver>> = Lazy::new(|| {
     }
     let mut opts = ResolverOpts::default();
     opts.server_ordering_strategy = ServerOrderingStrategy::UserProvidedOrder;
-    Arc::new(CustomTrustDnsResolver::new(config, opts).unwrap())
+    Arc::new(
+        CustomTrustDnsResolver::new(config, opts, |name: &Name| -> Option<Addrs> {
+            if name.as_str() == "p.njupt.edu.cn" {
+                return Some(Box::new(
+                    vec![SocketAddr::new(AP_PORTAL_FALLBACK_IP, 0)].into_iter(),
+                ));
+            }
+            None
+        })
+        .unwrap(),
+    )
 });
 
 const URL_GENERATE_204: &str = "http://connect.rom.miui.com/generate_204";
 const URL_AP_PORTAL: &str = "https://p.njupt.edu.cn/a79.htm";
+const AP_PORTAL_FALLBACK_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 10, 244, 11));
 const ERROR_MSG_OFF_HOURS: &str = "Authentication Fail ErrCode=16";
 
 static NJUPT_AUTHENTICATION_PATTERN: Lazy<regex::Regex> = Lazy::new(|| {
