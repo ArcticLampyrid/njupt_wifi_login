@@ -10,7 +10,10 @@ use std::{
     sync::Arc,
 };
 use thiserror::Error;
-use trust_dns_resolver::config::{NameServerConfig, Protocol, ResolverConfig, ResolverOpts};
+use trust_dns_resolver::{
+    config::{NameServerConfig, Protocol, ResolverConfig, ResolverOpts, ServerOrderingStrategy},
+    system_conf,
+};
 
 static DNS_RESOLVER: Lazy<Arc<CustomTrustDnsResolver>> = Lazy::new(|| {
     let mut config = ResolverConfig::new();
@@ -22,7 +25,17 @@ static DNS_RESOLVER: Lazy<Arc<CustomTrustDnsResolver>> = Lazy::new(|| {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(114, 114, 114, 114)), 53),
         Protocol::Udp,
     ));
-    Arc::new(CustomTrustDnsResolver::new(config, ResolverOpts::default()).unwrap())
+    // fallback to system name servers
+    if let Ok((system_conf, _)) = system_conf::read_system_conf() {
+        system_conf.name_servers().iter().for_each(|name_server| {
+            if !config.name_servers().iter().any(|ns| ns == name_server) {
+                config.add_name_server(name_server.clone());
+            }
+        });
+    }
+    let mut opts = ResolverOpts::default();
+    opts.server_ordering_strategy = ServerOrderingStrategy::UserProvidedOrder;
+    Arc::new(CustomTrustDnsResolver::new(config, opts).unwrap())
 });
 
 const URL_GENERATE_204: &str = "http://connect.rom.miui.com/generate_204";
