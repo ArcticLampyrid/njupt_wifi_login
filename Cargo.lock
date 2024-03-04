@@ -1985,7 +1985,7 @@ dependencies = [
 
 [[package]]
 name = "njupt_wifi_login"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "chrono",
  "clap",
@@ -2014,7 +2014,7 @@ dependencies = [
 
 [[package]]
 name = "njupt_wifi_login_configuration"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "chacha20poly1305",
  "hex",
@@ -2029,7 +2029,7 @@ dependencies = [
 
 [[package]]
 name = "njupt_wifi_login_configurator"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "auto-launch",
  "druid",
