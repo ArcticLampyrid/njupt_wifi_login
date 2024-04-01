@@ -6,7 +6,7 @@ version = "0.3.2"
 [dependencies]
 serde = {version = "1", features = ["derive"]}
 serde_with = {version = "3", features = ["base64"]}
-serde_yaml = "0.9.22"
+serde_yaml = "0.9"
 thiserror = "1"
 
 [target.'cfg(target_os = "windows")'.dependencies.windows]
