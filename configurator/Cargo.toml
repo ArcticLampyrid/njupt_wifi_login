@@ -5,7 +5,7 @@ version = "0.3.2"
 
 [features]
 default = ["windows-service-mode"]
-windows-service-mode = ["windows-service", "runas"]
+windows-service-mode = ["dep:windows-service", "dep:runas"]
 
 [dependencies]
 auto-launch = "0.5.0"

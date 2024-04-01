@@ -5,7 +5,7 @@ version = "0.3.2"
 
 [features]
 default = ["windows-service-mode"]
-windows-service-mode = ["windows-service"]
+windows-service-mode = ["dep:windows-service"]
 
 [dependencies]
 chrono = "0.4.26"
