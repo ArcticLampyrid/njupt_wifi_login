@@ -1,6 +1,10 @@
 use crate::{
     dns_resolver::CustomTrustDnsResolver, smart_bind_to_interface_ext::SmartBindToInterfaceExt,
 };
+use hickory_resolver::{
+    config::{NameServerConfig, Protocol, ResolverConfig, ResolverOpts, ServerOrderingStrategy},
+    system_conf,
+};
 use log::*;
 use njupt_wifi_login_configuration::{credential::Credential, password::PasswordError};
 use once_cell::sync::Lazy;
@@ -16,10 +20,6 @@ use std::{
     time::Duration,
 };
 use thiserror::Error;
-use trust_dns_resolver::{
-    config::{NameServerConfig, Protocol, ResolverConfig, ResolverOpts, ServerOrderingStrategy},
-    system_conf,
-};
 
 static DNS_RESOLVER: Lazy<Arc<CustomTrustDnsResolver>> = Lazy::new(|| {
     let mut config = ResolverConfig::new();

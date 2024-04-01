@@ -1,6 +1,6 @@
-use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
-use trust_dns_resolver::error::ResolveError;
-use trust_dns_resolver::{lookup_ip::LookupIpIntoIter, TokioAsyncResolver};
+use hickory_resolver::config::{ResolverConfig, ResolverOpts};
+use hickory_resolver::error::ResolveError;
+use hickory_resolver::{lookup_ip::LookupIpIntoIter, TokioAsyncResolver};
 
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use std::net::SocketAddr;
