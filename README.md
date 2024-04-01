@@ -21,7 +21,13 @@ It will listen for the network changed notifications and automatically do the au
 1. Download the binaries or build from the source on your own.
 2. Write down your userid and password into the configuration file (eg. `njupt_wifi.yml`).
    ```yaml
-   isp: CT # 移动用 CMCC，电信用 CT，南邮自身的用 EDU
+   # Your ISP type
+   # CMCC for China Mobile (中国移动)
+   # CT for China Telecom (中国电信)
+   # EDU for China Education and Research Network (中国教育和科研计算机网)
+   isp: CT
+
+   # Your account information
    userid: "B22999999"
    password: "password123456"
    ```
@@ -31,7 +37,10 @@ It will listen for the network changed notifications and automatically do the au
 Supported Platforms:
 
 - Windows 10 or later
-- Linux (may need to build from source)
+- Linux (may need to build from source)  
+  If you are using pre-built binaries, the following requirements should be met:
+  * `libssl.so.1.1` is required for running on Linux. For Arch Linux, you can install it by `sudo pacman -S openssl-1.1`.
+  * glibc is required. For distributions using musl, you may need to build from source.
 
 Feel free to open an issue if you want to use it on other platforms.
 
