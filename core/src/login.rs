@@ -1,10 +1,12 @@
 use crate::dns_resolver::CustomTrustDnsResolver;
-use hyper::client::connect::dns::Name;
 use log::*;
 use njupt_wifi_login_configuration::{credential::Credential, password::PasswordError};
 use once_cell::sync::Lazy;
 use regex::Regex;
-use reqwest::{dns::Addrs, redirect::Policy};
+use reqwest::{
+    dns::{Addrs, Name},
+    redirect::Policy,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},

@@ -1,9 +1,8 @@
-use hyper::client::connect::dns::Name;
 use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 use trust_dns_resolver::error::ResolveError;
 use trust_dns_resolver::{lookup_ip::LookupIpIntoIter, TokioAsyncResolver};
 
-use reqwest::dns::{Addrs, Resolve, Resolving};
+use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use std::net::SocketAddr;
 use std::sync::Arc;
 
