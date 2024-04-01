@@ -10,7 +10,7 @@ use reqwest::{
 use serde::{Deserialize, Serialize};
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
-    sync::Arc,
+    sync::Arc, time::Duration,
 };
 use thiserror::Error;
 use trust_dns_resolver::{
@@ -99,6 +99,7 @@ struct NJUPTAuthenticationResult {
 pub async fn get_network_status() -> NetworkStatus {
     let client_builder = reqwest::Client::builder()
         .no_proxy()
+        .timeout(Duration::from_secs(30))
         .dns_resolver(DNS_RESOLVER.clone());
     let client = match client_builder.build() {
         Ok(client) => client,
@@ -188,6 +189,7 @@ pub async fn send_login_request(
     ];
     let client = reqwest::Client::builder()
         .no_proxy()
+        .timeout(Duration::from_secs(30))
         .dns_resolver(DNS_RESOLVER.clone())
         .redirect(Policy::none())
         .build()?;
