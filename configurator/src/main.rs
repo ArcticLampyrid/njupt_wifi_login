@@ -65,6 +65,7 @@ struct ConfiguratorState {
     message: String,
     running: bool,
     check_interval: String,
+    interface: String,
 }
 
 fn read_my_config() -> Result<LoginConfig, Box<dyn Error>> {
@@ -88,8 +89,8 @@ fn main() {
         text.font_family("MiSans").unwrap_or(FontFamily::SYSTEM_UI)
     }))
     .title(WINDOW_TITLE)
-    .with_min_size((550.0, 440.0))
-    .window_size((550.0, 440.0));
+    .with_min_size((550.0, 460.0))
+    .window_size((550.0, 460.0));
 
     // create the initial app state
     let mut initial_state = ConfiguratorState::default();
@@ -108,6 +109,7 @@ fn main() {
             initial_state.password_scope = PasswordScopeState::Anywhere;
         }
         initial_state.check_interval = config.check_interval.to_string();
+        initial_state.interface = config.interface.unwrap_or_default();
     }
     initial_state.enabled = false;
     initial_state.running = false;
@@ -248,6 +250,29 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
             FlexParams::new(1.0, CrossAxisAlignment::End),
         );
 
+    let interface_label = Label::new(fl!("interface"));
+    let interface_tips_button =
+        Button::new("?").on_click(|_ctx, data: &mut ConfiguratorState, _env| {
+            data.message = fl!("tips-interface");
+        });
+    let interface_text_box = TextBox::new()
+        .expand_width()
+        .lens(ConfiguratorState::interface);
+    let interface_flex = Flex::row()
+        .with_child(
+            Flex::row()
+                .with_child(interface_label)
+                .with_default_spacer()
+                .with_child(interface_tips_button)
+                .align_left()
+                .fix_width(180.0),
+        )
+        .with_default_spacer()
+        .with_flex_child(
+            interface_text_box,
+            FlexParams::new(1.0, CrossAxisAlignment::End),
+        );
+
     let enable_checkbox = Checkbox::new(fl!("enable"))
         .lens(ConfiguratorState::enabled)
         .align_left();
@@ -330,6 +355,11 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
             let config = LoginConfig {
                 credential: Credential::new(data.userid.clone(), password, isp),
                 check_interval: data.check_interval.parse().unwrap_or(20 * 60),
+                interface: if data.interface.is_empty() {
+                    None
+                } else {
+                    Some(data.interface.clone())
+                },
             };
             if let Err(e) = write_my_config(&config) {
                 data.message = fl!("error-failed-to-write-config", details = e.to_string());
@@ -386,6 +416,8 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
         .with_child(check_interval_flex)
         .with_default_spacer()
         .with_child(launcher_flex)
+        .with_default_spacer()
+        .with_child(interface_flex)
         .with_default_spacer()
         .with_child(enable_checkbox)
         .with_default_spacer()

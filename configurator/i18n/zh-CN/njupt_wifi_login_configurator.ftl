@@ -33,3 +33,5 @@ error-selected-password-scope-not-supported-by-launcher = 错误：选择的密�
 windows-service-launcher-name = Windows 服务
 check-interval = 检查间隔（秒）
 tips-check-interval = 提示：除了监听网络变动以外，程序还会定期主动进行连接性检测以确保网络可用。这一选项指定了定期检测的时间间隔。（0 表示禁用）
+interface = 接口
+tips-interface = 提示：将请求包绑定到特定的接口上（如 eth0）上。留空表示不指定。

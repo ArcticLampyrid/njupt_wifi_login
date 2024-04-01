@@ -138,9 +138,12 @@ impl AppMain {
         Box<dyn std::error::Error + Sync + Send>,
     > {
         use crate::linux_network_listener::LinuxNetworkListenerHandle;
-        let handle = LinuxNetworkListenerHandle::register(move || {
-            tx.send(ActionInfo::CheckAndLogin()).unwrap();
-        })?;
+        let handle = LinuxNetworkListenerHandle::register(
+            move || {
+                tx.send(ActionInfo::CheckAndLogin()).unwrap();
+            },
+            self.config.interface.clone(),
+        )?;
         Ok(handle)
     }
 
@@ -165,11 +168,25 @@ impl AppMain {
                     }
 
                     info!("Start to check network status");
-                    let network_status = get_network_status().await;
+                    let network_status = get_network_status(self.config.interface.as_deref()).await;
+                    if network_status.is_err() {
+                        error!(
+                            "Failed to get network status: {:?}",
+                            network_status.unwrap_err()
+                        );
+                        continue;
+                    }
+                    let network_status = network_status.unwrap();
                     info!("Network status: {:?}", network_status);
                     if let login::NetworkStatus::AuthenticationNJUPT(ap_info) = network_status {
                         info!("Start to login");
-                        match send_login_request(&self.config.credential, &ap_info).await {
+                        match send_login_request(
+                            self.config.interface.as_deref(),
+                            &self.config.credential,
+                            &ap_info,
+                        )
+                        .await
+                        {
                             Ok(_) => {
                                 info!("Connected");
                                 self.off_hours_cache.lock().await.clear();

@@ -6,6 +6,7 @@ mod dns_resolver;
 mod linux_network_listener;
 mod login;
 mod off_hours_cache;
+mod smart_bind_to_interface_ext;
 mod win32_network_connectivity_hint_changed;
 use app_events::DefaultAppEvents;
 use app_main::AppMain;

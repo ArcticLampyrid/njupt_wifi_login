@@ -1,4 +1,6 @@
-use crate::dns_resolver::CustomTrustDnsResolver;
+use crate::{
+    dns_resolver::CustomTrustDnsResolver, smart_bind_to_interface_ext::SmartBindToInterfaceExt,
+};
 use log::*;
 use njupt_wifi_login_configuration::{credential::Credential, password::PasswordError};
 use once_cell::sync::Lazy;
@@ -10,7 +12,8 @@ use reqwest::{
 use serde::{Deserialize, Serialize};
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
-    sync::Arc, time::Duration,
+    sync::Arc,
+    time::Duration,
 };
 use thiserror::Error;
 use trust_dns_resolver::{
@@ -87,6 +90,8 @@ pub enum WifiLoginError {
     ServerRejected(String),
     #[error("failed to get password: {0}")]
     PasswordError(#[from] PasswordError),
+    #[error("failed to bind to interface: {0}")]
+    BindToInterfaceError(#[from] crate::smart_bind_to_interface_ext::SmartBindToInterfaceError),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -96,42 +101,40 @@ struct NJUPTAuthenticationResult {
     ret_code: Option<i32>,
 }
 
-pub async fn get_network_status() -> NetworkStatus {
+pub async fn get_network_status(interface: Option<&str>) -> Result<NetworkStatus, WifiLoginError> {
     let client_builder = reqwest::Client::builder()
+        .optional_smart_bind_to_interface(interface)?
         .no_proxy()
         .timeout(Duration::from_secs(30))
         .dns_resolver(DNS_RESOLVER.clone());
-    let client = match client_builder.build() {
-        Ok(client) => client,
-        Err(_) => return NetworkStatus::Disconnected,
-    };
+    let client = client_builder.build()?;
     let generate_204_page = match client.get(URL_GENERATE_204).send().await {
         Ok(generate_204_page) => generate_204_page,
-        Err(_) => return NetworkStatus::Disconnected,
+        Err(_) => return Ok(NetworkStatus::Disconnected),
     };
     match generate_204_page.status() {
         reqwest::StatusCode::NO_CONTENT => {
             // Network has been available
-            NetworkStatus::Connected
+            Ok(NetworkStatus::Connected)
         }
         reqwest::StatusCode::OK => {
             let content = match generate_204_page.text().await {
                 Ok(content) => content,
-                Err(_) => return NetworkStatus::Disconnected,
+                Err(_) => return Ok(NetworkStatus::Disconnected),
             };
             if NJUPT_AUTHENTICATION_PATTERN.is_match(content.as_str()) {
                 match get_ap_info(client).await {
-                    Some(value) => NetworkStatus::AuthenticationNJUPT(value),
-                    None => NetworkStatus::AuthenticationUnknown,
+                    Some(value) => Ok(NetworkStatus::AuthenticationNJUPT(value)),
+                    None => Ok(NetworkStatus::AuthenticationUnknown),
                 }
             } else {
-                NetworkStatus::AuthenticationUnknown
+                Ok(NetworkStatus::AuthenticationUnknown)
             }
         }
         reqwest::StatusCode::FOUND | reqwest::StatusCode::TEMPORARY_REDIRECT => {
-            NetworkStatus::AuthenticationUnknown
+            Ok(NetworkStatus::AuthenticationUnknown)
         }
-        _ => NetworkStatus::Disconnected,
+        _ => Ok(NetworkStatus::Disconnected),
     }
 }
 
@@ -165,6 +168,7 @@ async fn get_ap_info(client: reqwest::Client) -> Option<ApInfo> {
 }
 
 pub async fn send_login_request(
+    interface: Option<&str>,
     credential: &Credential,
     ap_info: &ApInfo,
 ) -> Result<(), WifiLoginError> {
@@ -188,6 +192,7 @@ pub async fn send_login_request(
         ("lang", "zh"),
     ];
     let client = reqwest::Client::builder()
+        .optional_smart_bind_to_interface(interface)?
         .no_proxy()
         .timeout(Duration::from_secs(30))
         .dns_resolver(DNS_RESOLVER.clone())

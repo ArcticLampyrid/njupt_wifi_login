@@ -1989,6 +1989,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "network-interface"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ee524f98ddbe7772762a7477cfb22356df075cac4069bf81ac5082a46db742c"
+dependencies = [
+ "cc",
+ "libc",
+ "thiserror",
+ "winapi",
+]
+
+[[package]]
 name = "nix"
 version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2012,6 +2024,7 @@ dependencies = [
  "netlink-packet-core",
  "netlink-packet-route",
  "netlink-sys",
+ "network-interface",
  "njupt_wifi_login_configuration",
  "once_cell",
  "regex",

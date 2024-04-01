@@ -6,6 +6,9 @@ pub struct LoginConfig {
     pub credential: Credential,
     #[serde(default = "default_check_interval")]
     pub check_interval: u64,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interface: Option<String>,
 }
 
 const fn default_check_interval() -> u64 {

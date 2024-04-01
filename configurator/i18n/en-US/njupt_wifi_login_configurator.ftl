@@ -33,3 +33,5 @@ error-selected-password-scope-not-supported-by-launcher = Error: Selected passwo
 windows-service-launcher-name = Windows Service
 check-interval = Check Interval (s)
 tips-check-interval = Tips: In addition to monitoring network changes, the program will also periodically perform proactive connectivity checks to ensure network availability. This option specifies the time interval for regular checks. (0 means disabled.)
+interface = Interface
+tips-interface = Tips: Bind the request to a specific interface (e.g., eth0). Leave empty to not specify.
