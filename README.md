@@ -37,10 +37,7 @@ It will listen for the network changed notifications and automatically do the au
 Supported Platforms:
 
 - Windows 10 or later
-- Linux (may need to build from source)  
-  If you are using pre-built binaries, the following requirements should be met:
-  * `libssl.so.1.1` is required for running on Linux. For Arch Linux, you can install it by `sudo pacman -S openssl-1.1`.
-  * glibc is required. For distributions using musl, you may need to build from source.
+- Linux (may need to build from source)
 
 Feel free to open an issue if you want to use it on other platforms.
 
