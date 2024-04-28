@@ -1,9 +1,8 @@
 use crate::{
     dns_resolver::CustomTrustDnsResolver, smart_bind_to_interface_ext::SmartBindToInterfaceExt,
 };
-use hickory_resolver::{
-    config::{NameServerConfig, Protocol, ResolverConfig, ResolverOpts, ServerOrderingStrategy},
-    system_conf,
+use hickory_resolver::config::{
+    NameServerConfig, Protocol, ResolverConfig, ResolverOpts, ServerOrderingStrategy,
 };
 use log::*;
 use njupt_wifi_login_configuration::{credential::Credential, password::PasswordError};
@@ -31,14 +30,6 @@ static DNS_RESOLVER: Lazy<Arc<CustomTrustDnsResolver>> = Lazy::new(|| {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(114, 114, 114, 114)), 53),
         Protocol::Udp,
     ));
-    // fallback to system name servers
-    if let Ok((system_conf, _)) = system_conf::read_system_conf() {
-        system_conf.name_servers().iter().for_each(|name_server| {
-            if !config.name_servers().iter().any(|ns| ns == name_server) {
-                config.add_name_server(name_server.clone());
-            }
-        });
-    }
     let mut opts = ResolverOpts::default();
     opts.server_ordering_strategy = ServerOrderingStrategy::UserProvidedOrder;
     Arc::new(
