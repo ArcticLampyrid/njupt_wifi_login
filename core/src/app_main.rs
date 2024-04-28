@@ -152,6 +152,7 @@ impl AppMain {
         mut rx: UnboundedReceiver<ActionInfo>,
     ) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
         let mut last_check_at: Option<std::time::Instant> = None;
+        let dns_resolver = login::new_dns_resolver(self.config.interface.clone());
 
         while let Some(action) = rx.recv().await {
             match action {
@@ -168,7 +169,9 @@ impl AppMain {
                     }
 
                     info!("Start to check network status");
-                    let network_status = get_network_status(self.config.interface.as_deref()).await;
+                    let network_status =
+                        get_network_status(self.config.interface.as_deref(), dns_resolver.clone())
+                            .await;
                     if network_status.is_err() {
                         error!(
                             "Failed to get network status: {:?}",
@@ -182,6 +185,7 @@ impl AppMain {
                         info!("Start to login");
                         match send_login_request(
                             self.config.interface.as_deref(),
+                            dns_resolver.clone(),
                             &self.config.credential,
                             &ap_info,
                         )

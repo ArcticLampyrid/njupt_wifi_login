@@ -2,7 +2,7 @@
 mod app_events;
 mod app_main;
 mod app_service_events;
-mod dns_resolver;
+mod dns;
 mod linux_network_listener;
 mod login;
 mod off_hours_cache;

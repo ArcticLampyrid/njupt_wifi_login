@@ -1,5 +1,5 @@
 use crate::{
-    dns_resolver::CustomTrustDnsResolver, smart_bind_to_interface_ext::SmartBindToInterfaceExt,
+    dns::resolver::CustomTrustDnsResolver, smart_bind_to_interface_ext::SmartBindToInterfaceExt,
 };
 use hickory_resolver::config::{
     NameServerConfig, Protocol, ResolverConfig, ResolverOpts, ServerOrderingStrategy,
@@ -9,7 +9,7 @@ use njupt_wifi_login_configuration::{credential::Credential, password::PasswordE
 use once_cell::sync::Lazy;
 use regex::Regex;
 use reqwest::{
-    dns::{Addrs, Name},
+    dns::{Addrs, Name, Resolve},
     redirect::Policy,
 };
 use serde::{Deserialize, Serialize};
@@ -19,31 +19,6 @@ use std::{
     time::Duration,
 };
 use thiserror::Error;
-
-static DNS_RESOLVER: Lazy<Arc<CustomTrustDnsResolver>> = Lazy::new(|| {
-    let mut config = ResolverConfig::new();
-    config.add_name_server(NameServerConfig::new(
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 53),
-        Protocol::Udp,
-    ));
-    config.add_name_server(NameServerConfig::new(
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(114, 114, 114, 114)), 53),
-        Protocol::Udp,
-    ));
-    let mut opts = ResolverOpts::default();
-    opts.server_ordering_strategy = ServerOrderingStrategy::UserProvidedOrder;
-    Arc::new(
-        CustomTrustDnsResolver::new(config, opts, |name: &Name| -> Option<Addrs> {
-            if name.as_str() == "p.njupt.edu.cn" {
-                return Some(Box::new(
-                    vec![SocketAddr::new(AP_PORTAL_FALLBACK_IP, 0)].into_iter(),
-                ));
-            }
-            None
-        })
-        .unwrap(),
-    )
-});
 
 const URL_GENERATE_204: &str = "http://connect.rom.miui.com/generate_204";
 const URL_AP_PORTAL: &str = "https://p.njupt.edu.cn/a79.htm";
@@ -92,12 +67,45 @@ struct NJUPTAuthenticationResult {
     ret_code: Option<i32>,
 }
 
-pub async fn get_network_status(interface: Option<&str>) -> Result<NetworkStatus, WifiLoginError> {
+pub fn new_dns_resolver(interface: Option<String>) -> Arc<CustomTrustDnsResolver> {
+    let mut config = ResolverConfig::new();
+
+    let ns = NameServerConfig::new(
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 53),
+        Protocol::Udp,
+    );
+    config.add_name_server(ns);
+
+    let ns = NameServerConfig::new(
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(114, 114, 114, 114)), 53),
+        Protocol::Udp,
+    );
+    config.add_name_server(ns);
+
+    let mut opts = ResolverOpts::default();
+    opts.server_ordering_strategy = ServerOrderingStrategy::QueryStatistics;
+    Arc::new(
+        CustomTrustDnsResolver::new(interface, config, opts, |name: &Name| -> Option<Addrs> {
+            if name.as_str() == "p.njupt.edu.cn" {
+                return Some(Box::new(
+                    vec![SocketAddr::new(AP_PORTAL_FALLBACK_IP, 0)].into_iter(),
+                ));
+            }
+            None
+        })
+        .unwrap(),
+    )
+}
+
+pub async fn get_network_status(
+    interface: Option<&str>,
+    dns_resolver: Arc<impl Resolve + 'static>,
+) -> Result<NetworkStatus, WifiLoginError> {
     let client_builder = reqwest::Client::builder()
         .optional_smart_bind_to_interface(interface)?
         .no_proxy()
         .timeout(Duration::from_secs(30))
-        .dns_resolver(DNS_RESOLVER.clone());
+        .dns_resolver(dns_resolver);
     let client = client_builder.build()?;
     let generate_204_page = match client.get(URL_GENERATE_204).send().await {
         Ok(generate_204_page) => generate_204_page,
@@ -160,6 +168,7 @@ async fn get_ap_info(client: reqwest::Client) -> Option<ApInfo> {
 
 pub async fn send_login_request(
     interface: Option<&str>,
+    dns_resolver: Arc<impl Resolve + 'static>,
     credential: &Credential,
     ap_info: &ApInfo,
 ) -> Result<(), WifiLoginError> {
@@ -186,7 +195,7 @@ pub async fn send_login_request(
         .optional_smart_bind_to_interface(interface)?
         .no_proxy()
         .timeout(Duration::from_secs(30))
-        .dns_resolver(DNS_RESOLVER.clone())
+        .dns_resolver(dns_resolver)
         .redirect(Policy::none())
         .build()?;
     let resp = client.get(url).query(&params).send().await?;

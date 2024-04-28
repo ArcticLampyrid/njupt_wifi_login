@@ -2029,6 +2029,7 @@ dependencies = [
  "chrono",
  "clap",
  "futures-util",
+ "hickory-proto",
  "hickory-resolver",
  "libc",
  "log",

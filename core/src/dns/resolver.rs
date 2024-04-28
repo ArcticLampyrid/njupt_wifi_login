@@ -1,12 +1,14 @@
+use super::runtime::BindableTokioRuntimeProvider;
 use hickory_resolver::config::{ResolverConfig, ResolverOpts};
 use hickory_resolver::error::ResolveError;
-use hickory_resolver::{lookup_ip::LookupIpIntoIter, TokioAsyncResolver};
-
+use hickory_resolver::lookup_ip::LookupIpIntoIter;
+use hickory_resolver::name_server::GenericConnector;
+use hickory_resolver::AsyncResolver;
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-type SharedResolver = Arc<TokioAsyncResolver>;
+type SharedResolver = Arc<AsyncResolver<GenericConnector<BindableTokioRuntimeProvider>>>;
 type SharedFallback = Arc<Box<dyn Fn(&Name) -> Option<Addrs> + Send + Sync>>;
 
 #[derive(Clone)]
@@ -21,6 +23,7 @@ struct SocketAddrs {
 
 impl CustomTrustDnsResolver {
     pub fn new<F>(
+        interface: Option<String>,
         config: ResolverConfig,
         options: ResolverOpts,
         fallback: F,
@@ -28,8 +31,9 @@ impl CustomTrustDnsResolver {
     where
         F: Fn(&Name) -> Option<Addrs> + Send + Sync + 'static,
     {
+        let connector = GenericConnector::new(BindableTokioRuntimeProvider::new(interface));
         Ok(CustomTrustDnsResolver {
-            shared: Arc::new(TokioAsyncResolver::tokio(config, options)),
+            shared: Arc::new(AsyncResolver::new(config, options, connector)),
             fallback: Arc::new(Box::new(fallback)),
         })
     }
