@@ -30,6 +30,18 @@ It will listen for the network changed notifications and automatically do the au
    # Your account information
    userid: "B22999999"
    password: "password123456"
+
+   # Specifies the time interval for proactive checks.
+   # The default value is 1200 seconds (20 minutes), 0 means no proactive checks.
+   # It is recommended to enable proactive checks, 
+   # for interface changing events may not be captured in some cases.
+   # check_interval: 1200
+
+   # Bind the request to a specific interface (e.g., eth0). 
+   # Leave empty to not specify.
+   # If you have multiple network interfaces or TUN/TAP devices, 
+   # you may need to specify the interface.
+   # interface: eth0
    ```
 3. Config to run `njupt_wifi_login` at startup and it will automatically do the rest.
 
