@@ -6,6 +6,7 @@ use std::{
 
 use clap::{Args, Subcommand};
 use njupt_wifi_login_configuration::login_config::LoginConfig;
+use thiserror::Error;
 use windows_service::{
     define_windows_service,
     service::ServiceDependency,
@@ -57,10 +58,44 @@ pub enum ServiceSubCommand {
     Main,
 }
 
+fn render_windows_service_error(error: &windows_service::Error) -> String {
+    // https://github.com/mullvad/windows-service-rs/pull/128
+    match error {
+        windows_service::Error::Winapi(io_err) => {
+            format!("IO error in winapi call: {}", io_err)
+        }
+        _ => error.to_string(),
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum ServiceCommandError {
+    #[error("failed to get executable path: {0}")]
+    GetExePath(#[source] std::io::Error),
+    #[error("failed to connect to service manager: {}", render_windows_service_error(.0))]
+    ConnectToServiceManager(#[source] windows_service::Error),
+    #[error("failed to open service: {}", render_windows_service_error(.0))]
+    OpenService(#[source] windows_service::Error),
+    #[error("failed to start service: {}", render_windows_service_error(.0))]
+    StartService(#[source] windows_service::Error),
+    #[error("failed to stop service: {}", render_windows_service_error(.0))]
+    StopService(#[source] windows_service::Error),
+    #[error("failed to delete service: {}", render_windows_service_error(.0))]
+    DeleteService(#[source] windows_service::Error),
+    #[error("failed to create service: {}", render_windows_service_error(.0))]
+    CreateService(#[source] windows_service::Error),
+    #[error("failed to change service config: {}", render_windows_service_error(.0))]
+    ChangeServiceConfig(#[source] windows_service::Error),
+    #[error("failed to start service control dispatcher: {}", render_windows_service_error(.0))]
+    StartServiceCtrlDispatcher(#[source] windows_service::Error),
+    #[error("failed to get service status: {}", render_windows_service_error(.0))]
+    QueryServiceStatus(#[source] windows_service::Error),
+}
+
 pub fn handle_service_command(
     command: ServiceCommand,
     my_config: LoginConfig,
-) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
+) -> Result<(), ServiceCommandError> {
     let service_name = command
         .name
         .unwrap_or_else(|| "njupt_wifi_login".to_string());
@@ -68,14 +103,15 @@ pub fn handle_service_command(
         ServiceSubCommand::Install => {
             let manager_access =
                 ServiceManagerAccess::CONNECT | ServiceManagerAccess::CREATE_SERVICE;
-            let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
+            let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)
+                .map_err(ServiceCommandError::ConnectToServiceManager)?;
             let service_info = ServiceInfo {
                 name: OsString::from(service_name.as_str()),
                 display_name: format!("NJUPT WiFi Login Service ({})", service_name).into(),
                 service_type: ServiceType::OWN_PROCESS,
                 start_type: ServiceStartType::AutoStart,
                 error_control: ServiceErrorControl::Normal,
-                executable_path: env::current_exe()?,
+                executable_path: env::current_exe().map_err(ServiceCommandError::GetExePath)?,
                 launch_arguments: vec![
                     OsString::from("service"),
                     OsString::from("--name"),
@@ -89,38 +125,56 @@ pub fn handle_service_command(
             if let Ok(service) =
                 service_manager.open_service(service_name, ServiceAccess::CHANGE_CONFIG)
             {
-                service.change_config(&service_info)?;
+                service
+                    .change_config(&service_info)
+                    .map_err(ServiceCommandError::ChangeServiceConfig)?;
             } else {
-                service_manager.create_service(&service_info, ServiceAccess::CHANGE_CONFIG)?;
+                service_manager
+                    .create_service(&service_info, ServiceAccess::CHANGE_CONFIG)
+                    .map_err(ServiceCommandError::CreateService)?;
             }
         }
         ServiceSubCommand::Uninstall => {
             let manager_access = ServiceManagerAccess::CONNECT;
-            let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
-            let service = service_manager.open_service(
-                service_name.as_str(),
-                ServiceAccess::QUERY_STATUS | ServiceAccess::STOP | ServiceAccess::DELETE,
-            )?;
+            let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)
+                .map_err(ServiceCommandError::ConnectToServiceManager)?;
+            let service = service_manager
+                .open_service(
+                    service_name.as_str(),
+                    ServiceAccess::QUERY_STATUS | ServiceAccess::STOP | ServiceAccess::DELETE,
+                )
+                .map_err(ServiceCommandError::OpenService)?;
             // The service will be marked for deletion,
             // but it will not be deleted until it is stopped and all handles are closed.
-            service.delete()?;
-            if service.query_status()?.current_state != ServiceState::Stopped {
-                service.stop()?;
+            service
+                .delete()
+                .map_err(ServiceCommandError::DeleteService)?;
+            let service_status = service
+                .query_status()
+                .map_err(ServiceCommandError::QueryServiceStatus)?;
+            if service_status.current_state != ServiceState::Stopped {
+                service.stop().map_err(ServiceCommandError::StopService)?;
             }
         }
         ServiceSubCommand::Start => {
             let manager_access = ServiceManagerAccess::CONNECT;
-            let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
-            let service =
-                service_manager.open_service(service_name.as_str(), ServiceAccess::START)?;
-            service.start(&[] as &[&OsStr])?;
+            let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)
+                .map_err(ServiceCommandError::ConnectToServiceManager)?;
+            let service = service_manager
+                .open_service(service_name.as_str(), ServiceAccess::START)
+                .map_err(ServiceCommandError::OpenService)?;
+            service
+                .start(&[] as &[&OsStr])
+                .map_err(ServiceCommandError::StartService)?;
         }
         ServiceSubCommand::Stop => {
             let manager_access = ServiceManagerAccess::CONNECT;
-            let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
-            let service =
-                service_manager.open_service(service_name.as_str(), ServiceAccess::STOP)?;
-            service.stop()?;
+            let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)
+                .map_err(ServiceCommandError::ConnectToServiceManager)?;
+            let service = service_manager
+                .open_service(service_name.as_str(), ServiceAccess::STOP)
+                .map_err(ServiceCommandError::OpenService)?;
+            service.stop().map_err(ServiceCommandError::StopService)?;
         }
         ServiceSubCommand::Main => {
             let globals = ServiceGlobals {
@@ -128,7 +182,8 @@ pub fn handle_service_command(
                 service_name: service_name.to_string(),
             };
             unsafe { SERVICE_GLOBALS = Some(globals) };
-            service_dispatcher::start(service_name, ffi_service_main)?;
+            service_dispatcher::start(service_name, ffi_service_main)
+                .map_err(ServiceCommandError::StartServiceCtrlDispatcher)?;
         }
     }
     Ok(())
