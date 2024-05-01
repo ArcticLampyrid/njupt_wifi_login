@@ -62,45 +62,94 @@ pub enum Command {
     },
 }
 
-fn read_my_config() -> Result<LoginConfig, Box<dyn std::error::Error>> {
+fn read_my_config() -> Result<LoginConfig, Box<dyn std::error::Error + Sync + Send>> {
     let f = std::fs::File::open(CONFIG_PATH.as_path())?;
     let config: LoginConfig = serde_yaml::from_reader(f)?;
     Ok(config)
 }
 
+fn init_log(log_level: LevelFilter) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
+    let file_log = FileAppender::builder()
+        .encoder(Box::<PatternEncoder>::default())
+        .build(LOG_PATH.as_path())?;
+
+    let log_config = log4rs::Config::builder()
+        .appender(Appender::builder().build("file_log", Box::new(file_log)))
+        .build(Root::builder().appender("file_log").build(log_level))?;
+
+    let _ = log4rs::init_config(log_config)?;
+    Ok(())
+}
+
+fn windows_error_dialog(error: &str) {
+    #[cfg(windows)]
+    {
+        // For Windows, no console is available when subsystem is windows.
+        // So we use MessageBoxW to show the error message.
+
+        use windows::core::PCWSTR;
+        use windows::Win32::UI::WindowsAndMessaging::MessageBoxW;
+        use windows::Win32::UI::WindowsAndMessaging::MB_ICONERROR;
+        use windows::Win32::UI::WindowsAndMessaging::MB_OK;
+
+        unsafe {
+            let caption: &'static [u16] = &[
+                'E' as u16, 'r' as u16, 'r' as u16, 'o' as u16, 'r' as u16, 0,
+            ];
+            let message = error
+                .encode_utf16()
+                .chain(std::iter::once(0))
+                .collect::<Vec<u16>>();
+            MessageBoxW(
+                None,
+                PCWSTR::from_raw(message.as_ptr()),
+                PCWSTR::from_raw(caption.as_ptr()),
+                MB_OK | MB_ICONERROR,
+            );
+        }
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
-    let args: Args = Args::parse();
+    let args = match Args::try_parse() {
+        Ok(args) => args,
+        Err(error) => {
+            windows_error_dialog(error.to_string().as_str());
+            error.exit();
+        }
+    };
 
     let log_level = if args.verbose {
         LevelFilter::Trace
     } else {
         LevelFilter::Info
     };
+    if let Err(error) = init_log(log_level) {
+        windows_error_dialog(&format!("Failed to init log: {}", error));
+        return Err(error);
+    }
 
-    let file_log = FileAppender::builder()
-        .encoder(Box::<PatternEncoder>::default())
-        .build(LOG_PATH.as_path())
-        .unwrap();
+    let my_config = match read_my_config() {
+        Ok(config) => config,
+        Err(error) => {
+            error!("Failed to read config: {}", error);
+            return Err(error);
+        }
+    };
 
-    let log_config = log4rs::Config::builder()
-        .appender(Appender::builder().build("file_log", Box::new(file_log)))
-        .build(Root::builder().appender("file_log").build(log_level))
-        .unwrap();
-
-    let _ = log4rs::init_config(log_config).unwrap();
-
-    let my_config = read_my_config().unwrap_or_else(|error| {
-        error!("Failed to read config: {}", error);
-        panic!("{}", error)
-    });
-
-    match args.command {
+    let run: Result<(), Box<dyn std::error::Error + Sync + Send>> = match args.command {
         #[cfg(all(feature = "windows-service-mode", target_os = "windows"))]
-        Some(Command::Service { args }) => handle_service_command(args, my_config)?,
+        Some(Command::Service { args }) => {
+            handle_service_command(args, my_config).map_err(|e| e.into())
+        }
         _ => {
             let app = AppMain::new(my_config);
-            app.run(DefaultAppEvents)?;
+            app.run(DefaultAppEvents)
         }
+    };
+    if let Err(error) = run {
+        error!("Unhandled error: {}", error);
+        return Err(error);
     }
     Ok(())
 }
