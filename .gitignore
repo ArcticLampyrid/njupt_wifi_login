@@ -2,3 +2,7 @@
 njupt_wifi.*
 
 /target
+
+# Directories used when deploying
+/unpacked
+/release
