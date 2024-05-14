@@ -1,6 +1,7 @@
 use crate::{
     dns::resolver::CustomTrustDnsResolver, smart_bind_to_interface_ext::SmartBindToInterfaceExt,
 };
+use display_error_chain::ErrorChainExt;
 use hickory_resolver::config::{
     NameServerConfig, Protocol, ResolverConfig, ResolverOpts, ServerOrderingStrategy,
 };
@@ -46,7 +47,7 @@ pub enum NetworkStatus {
 
 #[derive(Error, Debug)]
 pub enum WifiLoginError {
-    #[error("http request failed: {0}")]
+    #[error("http request failed")]
     HttpRequestFailed(#[from] reqwest::Error),
     #[error("authentication failed")]
     AuthenticationFailed(),
@@ -54,9 +55,9 @@ pub enum WifiLoginError {
     OffHours(),
     #[error("authentication server rejected: {0}")]
     ServerRejected(String),
-    #[error("failed to get password: {0}")]
+    #[error("failed to get password")]
     PasswordError(#[from] PasswordError),
-    #[error("failed to bind to interface: {0}")]
+    #[error("failed to bind to interface")]
     BindToInterfaceError(#[from] crate::smart_bind_to_interface_ext::SmartBindToInterfaceError),
 }
 
@@ -141,7 +142,7 @@ async fn get_ap_info(client: reqwest::Client) -> Option<ApInfo> {
     let ap_portal = match client.get(URL_AP_PORTAL).send().await {
         Ok(ap_portal) => ap_portal,
         Err(err) => {
-            error!("Failed to get ap info: {}", err);
+            error!("Failed to get ap info: {}", err.chain());
             return None;
         }
     };
@@ -151,7 +152,7 @@ async fn get_ap_info(client: reqwest::Client) -> Option<ApInfo> {
     let ap_portal_content = match ap_portal.text().await {
         Ok(content) => content,
         Err(err) => {
-            error!("Failed to decode ap portal data: {}", err);
+            error!("Failed to decode ap portal data: {}", err.chain());
             return None;
         }
     };
@@ -219,7 +220,8 @@ pub async fn send_login_request(
                 Err(err) => {
                     error!(
                         "Failed to parse authentication result: {}, error: {}",
-                        content, err
+                        content,
+                        err.chain()
                     );
                 }
             }

@@ -11,6 +11,7 @@ mod win32_network_connectivity_hint_changed;
 use app_events::DefaultAppEvents;
 use app_main::AppMain;
 use clap::{Parser, Subcommand};
+use display_error_chain::ErrorChainExt;
 use log::*;
 use log4rs::{
     append::file::FileAppender,
@@ -81,7 +82,7 @@ fn init_log(log_level: LevelFilter) -> Result<(), Box<dyn std::error::Error + Sy
     Ok(())
 }
 
-fn windows_error_dialog(error: &str) {
+fn windows_error_dialog(#[allow(unused)] error: &str) {
     #[cfg(windows)]
     {
         // For Windows, no console is available when subsystem is windows.
@@ -114,6 +115,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
     let args = match Args::try_parse() {
         Ok(args) => args,
         Err(error) => {
+            // Not necessary to print error chain here.
             windows_error_dialog(error.to_string().as_str());
             error.exit();
         }
@@ -125,14 +127,14 @@ fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
         LevelFilter::Info
     };
     if let Err(error) = init_log(log_level) {
-        windows_error_dialog(&format!("Failed to init log: {}", error));
+        windows_error_dialog(&format!("Failed to init log: {}", error.as_ref().chain()));
         return Err(error);
     }
 
     let my_config = match read_my_config() {
         Ok(config) => config,
         Err(error) => {
-            error!("Failed to read config: {}", error);
+            error!("Failed to read config: {}", error.as_ref().chain());
             return Err(error);
         }
     };
@@ -148,7 +150,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
         }
     };
     if let Err(error) = run {
-        error!("Unhandled error: {}", error);
+        error!("Unhandled error: {}", error.as_ref().chain());
         return Err(error);
     }
     Ok(())

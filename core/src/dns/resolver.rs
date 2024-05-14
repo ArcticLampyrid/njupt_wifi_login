@@ -1,4 +1,5 @@
 use super::runtime::BindableTokioRuntimeProvider;
+use display_error_chain::ErrorChainExt;
 use hickory_resolver::config::{ResolverConfig, ResolverOpts};
 use hickory_resolver::error::ResolveError;
 use hickory_resolver::lookup_ip::LookupIpIntoIter;
@@ -56,7 +57,7 @@ impl Resolve for CustomTrustDnsResolver {
                         log::error!(
                             "Fallback addrs for {} is used due to {}",
                             name.as_str(),
-                            err
+                            err.chain()
                         );
                         Ok(addrs)
                     }

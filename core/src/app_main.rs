@@ -1,6 +1,7 @@
 use crate::app_events::AppEvents;
 use crate::login::{self, get_network_status, send_login_request, WifiLoginError};
 use crate::off_hours_cache::OffHoursCache;
+use display_error_chain::ErrorChainExt;
 use log::*;
 use njupt_wifi_login_configuration::login_config::LoginConfig;
 use std::sync::Arc;
@@ -48,7 +49,7 @@ impl AppMain {
                 let event_loop_handle = tokio::spawn(async move { self.event_loop(rx).await });
                 events.register_abort_handle(event_loop_handle.abort_handle());
                 if let Ok(Err(err)) = event_loop_handle.await {
-                    error!("Event loop error: {}", err);
+                    error!("Event loop error: {}", err.as_ref().chain());
                 }
                 info!("Stopping");
                 events.on_stopping();
@@ -174,8 +175,8 @@ impl AppMain {
                             .await;
                     if network_status.is_err() {
                         error!(
-                            "Failed to get network status: {:?}",
-                            network_status.unwrap_err()
+                            "Failed to get network status: {}",
+                            network_status.unwrap_err().chain()
                         );
                         continue;
                     }
@@ -196,7 +197,7 @@ impl AppMain {
                                 self.off_hours_cache.lock().await.clear();
                             }
                             Err(err) => {
-                                error!("Failed to connect: {}", err);
+                                error!("Failed to connect: {}", err.chain());
                                 if let WifiLoginError::OffHours() = err {
                                     self.off_hours_cache.lock().await.set();
                                 }

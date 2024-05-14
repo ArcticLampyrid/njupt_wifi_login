@@ -58,37 +58,27 @@ pub enum ServiceSubCommand {
     Main,
 }
 
-fn render_windows_service_error(error: &windows_service::Error) -> String {
-    // https://github.com/mullvad/windows-service-rs/pull/128
-    match error {
-        windows_service::Error::Winapi(io_err) => {
-            format!("IO error in winapi call: {}", io_err)
-        }
-        _ => error.to_string(),
-    }
-}
-
 #[derive(Error, Debug)]
 pub enum ServiceCommandError {
-    #[error("failed to get executable path: {0}")]
+    #[error("failed to get executable path")]
     GetExePath(#[source] std::io::Error),
-    #[error("failed to connect to service manager: {}", render_windows_service_error(.0))]
+    #[error("failed to connect to service manager")]
     ConnectToServiceManager(#[source] windows_service::Error),
-    #[error("failed to open service: {}", render_windows_service_error(.0))]
+    #[error("failed to open service")]
     OpenService(#[source] windows_service::Error),
-    #[error("failed to start service: {}", render_windows_service_error(.0))]
+    #[error("failed to start service")]
     StartService(#[source] windows_service::Error),
-    #[error("failed to stop service: {}", render_windows_service_error(.0))]
+    #[error("failed to stop service")]
     StopService(#[source] windows_service::Error),
-    #[error("failed to delete service: {}", render_windows_service_error(.0))]
+    #[error("failed to delete service")]
     DeleteService(#[source] windows_service::Error),
-    #[error("failed to create service: {}", render_windows_service_error(.0))]
+    #[error("failed to create service")]
     CreateService(#[source] windows_service::Error),
-    #[error("failed to change service config: {}", render_windows_service_error(.0))]
+    #[error("failed to change service config")]
     ChangeServiceConfig(#[source] windows_service::Error),
-    #[error("failed to start service control dispatcher: {}", render_windows_service_error(.0))]
+    #[error("failed to start service control dispatcher")]
     StartServiceCtrlDispatcher(#[source] windows_service::Error),
-    #[error("failed to get service status: {}", render_windows_service_error(.0))]
+    #[error("failed to get service status")]
     QueryServiceStatus(#[source] windows_service::Error),
 }
 

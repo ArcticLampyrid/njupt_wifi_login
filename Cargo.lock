@@ -680,6 +680,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "display-error-chain"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f77af9e75578c1ab34f5f04545a8b05be0c36fbd7a9bb3cf2d2a971e435fdbb9"
+
+[[package]]
 name = "displaydoc"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2042,6 +2048,7 @@ version = "0.4.3"
 dependencies = [
  "chrono",
  "clap",
+ "display-error-chain",
  "embed-resource",
  "futures-util",
  "hickory-proto",
@@ -2087,6 +2094,7 @@ name = "njupt_wifi_login_configurator"
 version = "0.4.3"
 dependencies = [
  "auto-launch",
+ "display-error-chain",
  "druid",
  "embed-resource",
  "i18n-embed",

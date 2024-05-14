@@ -37,14 +37,14 @@ pub enum Password {
 #[derive(Error, Debug)]
 pub enum PasswordError {
     #[cfg(target_os = "windows")]
-    #[error("win32 cryptography error: {0}")]
+    #[error("win32 cryptography error")]
     Win32CryptographyError(#[from] windows::core::Error),
     #[error("scope not supported")]
     ScopeNotSupported(PasswordScope),
-    #[error("from utf8 error: {0}")]
+    #[error("from utf8 error")]
     FromUtf8Error(#[from] FromUtf8Error),
     #[cfg(not(target_os = "windows"))]
-    #[error("local machine cryptography error: {0}")]
+    #[error("local machine cryptography error")]
     LocalMachineCryptographyError(#[from] LocalMachineDataProtectionError),
 }
 

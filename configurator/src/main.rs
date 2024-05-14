@@ -3,6 +3,7 @@ mod custom_font_scope;
 mod i18n;
 mod launcher;
 use custom_font_scope::CustomFontScope;
+use display_error_chain::ErrorChainExt;
 use druid::widget::{
     Align, Button, Checkbox, CrossAxisAlignment, Flex, FlexParams, Label, LineBreaking, RadioGroup,
     TextBox,
@@ -301,7 +302,10 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
                 return;
             }
             if let Err(e) = current_launcher.start() {
-                data.message = fl!("error-failed-to-start", details = e.to_string());
+                data.message = fl!(
+                    "error-failed-to-start",
+                    details = e.as_ref().chain().to_string()
+                );
                 return;
             }
             data.running = true;
@@ -318,7 +322,10 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
                 return;
             }
             if let Err(e) = current_launcher.stop() {
-                data.message = fl!("error-failed-to-stop", details = e.to_string());
+                data.message = fl!(
+                    "error-failed-to-stop",
+                    details = e.as_ref().chain().to_string()
+                );
                 return;
             }
             data.running = false;
@@ -348,7 +355,10 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
             }
             let password = Password::try_new(data.password.clone(), password_scope);
             if let Err(e) = password {
-                data.message = fl!("error-failed-to-encrypt-password", details = e.to_string());
+                data.message = fl!(
+                    "error-failed-to-encrypt-password",
+                    details = e.chain().to_string()
+                );
                 return;
             }
             let password = password.unwrap();
@@ -362,7 +372,10 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
                 },
             };
             if let Err(e) = write_my_config(&config) {
-                data.message = fl!("error-failed-to-write-config", details = e.to_string());
+                data.message = fl!(
+                    "error-failed-to-write-config",
+                    details = e.as_ref().chain().to_string()
+                );
                 return;
             }
             for (index, launcher) in LAUNCHERS.iter().enumerate() {
@@ -374,7 +387,7 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
                         data.message = fl!(
                             "error-failed-to-disable-other-launchers",
                             launcher = launcher.name(),
-                            details = e.to_string()
+                            details = e.as_ref().chain().to_string()
                         );
                         return;
                     }
@@ -388,7 +401,10 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
                 Ok(())
             };
             if let Err(e) = auto_launch_result {
-                data.message = fl!("error-failed-to-set-auto-launch", details = e.to_string());
+                data.message = fl!(
+                    "error-failed-to-set-auto-launch",
+                    details = e.as_ref().chain().to_string()
+                );
                 return;
             }
             data.message = fl!("info-applied-successfully");
