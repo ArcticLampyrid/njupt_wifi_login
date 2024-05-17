@@ -16,12 +16,17 @@ use reqwest::{
 use serde::{Deserialize, Serialize};
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
-    sync::Arc,
+    sync::{atomic::AtomicUsize, Arc},
     time::Duration,
 };
 use thiserror::Error;
 
-const URL_GENERATE_204: &str = "http://connect.rom.miui.com/generate_204";
+// Use multiple URLs here, so any of them won't be overloaded easily.
+const URLS_CONNECTIVITY_CHECK_204: [&str; 3] = [
+    "http://connect.rom.miui.com/generate_204",
+    "http://connectivitycheck.platform.hicloud.com/generate_204",
+    "http://wifi.vivo.com.cn/generate_204",
+];
 const URL_AP_PORTAL: &str = "https://p.njupt.edu.cn/a79.htm";
 const AP_PORTAL_FALLBACK_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 10, 244, 11));
 const ERROR_MSG_OFF_HOURS: &str = "Authentication Fail ErrCode=16";
@@ -31,6 +36,8 @@ static NJUPT_AUTHENTICATION_PATTERN: Lazy<regex::Regex> = Lazy::new(|| {
 });
 
 static AP_INFO_PATTERN: Lazy<regex::Regex> = Lazy::new(|| Regex::new("v46ip='(.*?)'").unwrap());
+
+static CONNECTIVITY_CHECK_204_LOAD_BALANCE: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Debug)]
 pub struct ApInfo {
@@ -98,17 +105,32 @@ pub fn new_dns_resolver(interface: Option<String>) -> Arc<CustomTrustDnsResolver
     )
 }
 
+pub fn random_url_for_connectivity_check_204() -> &'static str {
+    let index = CONNECTIVITY_CHECK_204_LOAD_BALANCE
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        % URLS_CONNECTIVITY_CHECK_204.len();
+    URLS_CONNECTIVITY_CHECK_204[index]
+}
+
 pub async fn get_network_status(
     interface: Option<&str>,
     dns_resolver: Arc<impl Resolve + 'static>,
 ) -> Result<NetworkStatus, WifiLoginError> {
+    // Use public connectivity check page to determine network status,
+    // which prevents exposing the school if not in the campus network.
+    // What's more, it will minimize the network traffic to campus portal,
+    // which is fragile and slow.
     let client_builder = reqwest::Client::builder()
         .optional_smart_bind_to_interface(interface)?
         .no_proxy()
         .timeout(Duration::from_secs(30))
         .dns_resolver(dns_resolver);
     let client = client_builder.build()?;
-    let generate_204_page = match client.get(URL_GENERATE_204).send().await {
+    let generate_204_page = match client
+        .get(random_url_for_connectivity_check_204())
+        .send()
+        .await
+    {
         Ok(generate_204_page) => generate_204_page,
         Err(_) => return Ok(NetworkStatus::Disconnected),
     };
@@ -227,7 +249,13 @@ pub async fn send_login_request(
             }
         }
     }
-    if client.get(URL_GENERATE_204).send().await?.status() == reqwest::StatusCode::NO_CONTENT {
+    if client
+        .get(random_url_for_connectivity_check_204())
+        .send()
+        .await?
+        .status()
+        == reqwest::StatusCode::NO_CONTENT
+    {
         // Fallback
         return Ok(());
     }
