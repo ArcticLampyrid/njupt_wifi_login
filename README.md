@@ -46,11 +46,22 @@ It will listen for the network changed notifications and automatically do the au
 3. Config to run `njupt_wifi_login` at startup and it will automatically do the rest.
 
 ## Requirements
-Supported Platforms:
+### Windows
+Windows 10 or later is required.
 
-- Windows 10 or later
-- Linux (may need to build from source)
+### Linux
+Pre-built binaries for Linux x86-64 are provided, with both glibc and musl libc support (glibc is used in most distributions, while musl is used in OpenWRT & Alpine). If it doesn't meet your needs, you need to build it from the source.
 
+For any users, you need to install openssl as a dependency. The default binary depends on openssl v3, and the binary tagged with `openssl1.1` depends on openssl v1.1.
+
+> [!TIP]  
+> For OpenWRT users, you can install `libopenssl` to meet the requirements.  
+> ```bash
+> opkg update
+> opkg install libopenssl
+> ```
+
+### Other
 Feel free to open an issue if you want to use it on other platforms.
 
 ## Remarks
