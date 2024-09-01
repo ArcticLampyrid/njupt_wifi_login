@@ -77,9 +77,9 @@ impl AppMain {
             info!("Regular check is disabled");
             return Ok(tokio::spawn(async {}));
         }
-        if check_interval < Duration::from_secs(60) {
-            warn!("Regular check interval is too short, fallback to 1 minute");
-            check_interval = Duration::from_secs(60);
+        if check_interval < Duration::from_secs(15) {
+            warn!("Regular check interval is too short, fallback to 15 secs");
+            check_interval = Duration::from_secs(15);
         }
         let off_hours_cache = self.off_hours_cache.clone();
         let join_handle = tokio::spawn(async move {
