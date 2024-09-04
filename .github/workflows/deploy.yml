@@ -64,12 +64,9 @@ jobs:
       matrix:
         release_name:
           - "linux-x86_64"
-          - "linux-x86_64-openssl1.1"
         include:
           - release_name: "linux-x86_64"
             os: ubuntu-latest
-          - release_name: "linux-x86_64-openssl1.1"
-            os: ubuntu-20.04
     runs-on: ${{ matrix.os }}
     needs: 
     - generate-release-notes
@@ -105,14 +102,10 @@ jobs:
       matrix:
         release_name:
           - "linux-x86_64-musl"
-          - "linux-x86_64-musl-openssl1.1"
         include:
           - release_name: "linux-x86_64-musl"
             image: rust:alpine
-            dependencies: musl-dev openssl-dev gtk+3.0-dev
-          - release_name: "linux-x86_64-musl-openssl1.1"
-            image: rust:alpine3.18
-            dependencies: musl-dev openssl1.1-compat-dev gtk+3.0-dev
+            dependencies: musl-dev gtk+3.0-dev
     runs-on: ubuntu-latest
     needs: 
     - generate-release-notes

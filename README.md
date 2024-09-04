@@ -52,8 +52,6 @@ Windows 10 or later is required.
 ### Linux
 Pre-built binaries for Linux x86-64 are provided, with both glibc and musl libc support (glibc is used in most distributions, while musl is used in OpenWRT & Alpine). If it doesn't meet your needs, you need to build it from the source.
 
-For any users, you need to install openssl as a dependency. The default binary depends on openssl v3, and the binary tagged with `openssl1.1` depends on openssl v1.1.
-
 > [!TIP]  
 > For OpenWRT users, you can install `libopenssl` to meet the requirements.  
 > ```bash
