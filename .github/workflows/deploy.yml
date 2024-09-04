@@ -2,8 +2,14 @@ name: Deploy
 
 on:
   push:
+    branches: 
+      - main
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
+  pull_request:
+    branches: 
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -21,12 +27,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: latest
-      - run: npx changelogithub -d
+      - run: npx changelogithub ${{ github.event_name == 'push' && github.ref_type == 'tag' && '--draft' || '--dry'}}
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
   deploy-win:
-    if: startsWith(github.ref, 'refs/tags/')
     runs-on: windows-latest
     needs: 
     - generate-release-notes
@@ -39,13 +44,14 @@ jobs:
     - name: Package
       shell: pwsh
       run: |
-        $version = $env:GITHUB_REF.replace('refs/tags/', '')
+        $version = git describe --tags --dirty --always
         $unpacked_dir = "unpacked/njupt_wifi_login"
         New-Item -ItemType Directory -Force -Path $unpacked_dir
         Copy-Item -Path "target/release/*.exe" -Destination $unpacked_dir
         New-Item -ItemType Directory -Force -Path "release"
         7z a -mx=9 -ms=on "release\njupt_wifi_login-${version}-win-x86_64.7z" "unpacked\*"
     - name: Release (GitHub)
+      if: github.event_name == 'push' && github.ref_type == 'tag'
       uses: ncipollo/release-action@v1
       with:
         allowUpdates: true
@@ -54,7 +60,6 @@ jobs:
         artifacts: "release/*"
   
   deploy-linux:
-    if: startsWith(github.ref, 'refs/tags/')
     strategy:
       matrix:
         release_name:
@@ -79,7 +84,7 @@ jobs:
       run: cargo build --release --verbose
     - name: Package
       run: |
-        version=$(echo $GITHUB_REF | sed 's/refs\/tags\///')
+        version=$(git describe --tags --dirty --always)
         unpacked_dir=unpacked/njupt_wifi_login
         mkdir -p $unpacked_dir
         cp target/release/njupt_wifi_login $unpacked_dir
@@ -87,6 +92,7 @@ jobs:
         mkdir -p release
         tar -czf release/njupt_wifi_login-${version}-${{ matrix.release_name }}.tar.gz -C unpacked .
     - name: Release (GitHub)
+      if: github.event_name == 'push' && github.ref_type == 'tag'
       uses: ncipollo/release-action@v1
       with:
         allowUpdates: true
@@ -95,7 +101,6 @@ jobs:
         artifacts: "release/*"
 
   deploy-linux-musl:
-    if: startsWith(github.ref, 'refs/tags/')
     strategy:
       matrix:
         release_name:
@@ -126,7 +131,7 @@ jobs:
           RUSTFLAGS: '-C target-feature=-crt-static'
       - name: Package
         run: |
-          version=$(echo $GITHUB_REF | sed 's/refs\/tags\///')
+          version=$(git describe --tags --dirty --always)
           unpacked_dir=unpacked/njupt_wifi_login
           mkdir -p $unpacked_dir
           cp target/release/njupt_wifi_login $unpacked_dir
@@ -134,6 +139,7 @@ jobs:
           mkdir -p release
           tar -czf release/njupt_wifi_login-${version}-${{ matrix.release_name }}.tar.gz -C unpacked .
       - name: Release (GitHub)
+        if: github.event_name == 'push' && github.ref_type == 'tag'
         uses: ncipollo/release-action@v1
         with:
           allowUpdates: true
@@ -142,6 +148,7 @@ jobs:
           artifacts: "release/*"
 
   publish-release:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
     runs-on: ubuntu-latest
     needs:
     - deploy-win
