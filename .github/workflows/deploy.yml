@@ -32,24 +32,36 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
 
   deploy-win:
+    strategy:
+      matrix:
+        release_name:
+          - "win-x86_64"
+          - "win-aarch64"
+        include:
+          - release_name: "win-x86_64"
+            rust_target: "x86_64-pc-windows-msvc"
+          - release_name: "win-aarch64"
+            rust_target: "aarch64-pc-windows-msvc"
     runs-on: windows-latest
     needs: 
     - generate-release-notes
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ matrix.rust_target }}
     - name: Build (Release)
       shell: pwsh
-      run: cargo build --release --verbose
+      run: cargo build --release --target ${{ matrix.rust_target }} --verbose
     - name: Package
       shell: pwsh
       run: |
         $version = git describe --tags --dirty --always
         $unpacked_dir = "unpacked/njupt_wifi_login"
         New-Item -ItemType Directory -Force -Path $unpacked_dir
-        Copy-Item -Path "target/release/*.exe" -Destination $unpacked_dir
+        Copy-Item -Path "target/${{ matrix.rust_target }}/release/*.exe" -Destination $unpacked_dir
         New-Item -ItemType Directory -Force -Path "release"
-        7z a -mx=9 -ms=on "release\njupt_wifi_login-${version}-win-x86_64.7z" "unpacked\*"
+        7z a -mx=9 -ms=on "release\njupt_wifi_login-${version}-${{ matrix.release_name }}.7z" "unpacked\*"
     - name: Release (GitHub)
       if: github.event_name == 'push' && github.ref_type == 'tag'
       uses: ncipollo/release-action@v1
