@@ -14,9 +14,6 @@ on:
 permissions:
   contents: write
 
-env:
-  CARGO_TERM_COLOR: always
-
 jobs:
   generate-release-notes:
     runs-on: ubuntu-latest
@@ -33,6 +30,7 @@ jobs:
 
   deploy-win:
     strategy:
+      fail-fast: false
       matrix:
         release_name:
           - "win-x86_64"
@@ -73,6 +71,7 @@ jobs:
   
   deploy-linux:
     strategy:
+      fail-fast: false
       matrix:
         release_name:
           - "linux-x86_64"
@@ -151,6 +150,7 @@ jobs:
 
   deploy-linux-musl:
     strategy:
+      fail-fast: false
       matrix:
         release_name:
           - "linux-x86_64-musl"
@@ -173,7 +173,7 @@ jobs:
           platforms: ${{ matrix.arch }}
       - name: Build in Docker
         run: |
-          cat << EOF | docker run -i --rm -v ${{ github.workspace }}:/workspace -w /workspace --platform 'linux/${{ matrix.arch }}' rust:alpine sh -e
+          cat << EOF | docker run -i --rm -v ${{ github.workspace }}:/workspace -w /workspace --platform 'linux/${{ matrix.arch }}' -e CARGO_TERM_COLOR=always rust:alpine sh -e
             apk add --no-cache git musl-dev gtk+3.0-dev
             export RUSTFLAGS='-C target-feature=-crt-static'
             cargo build --release --verbose
