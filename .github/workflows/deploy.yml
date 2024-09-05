@@ -154,26 +154,30 @@ jobs:
       matrix:
         release_name:
           - "linux-x86_64-musl"
+          - "linux-aarch64-musl"
         include:
           - release_name: "linux-x86_64-musl"
-            image: rust:alpine
-            dependencies: musl-dev gtk+3.0-dev
+            arch: 'amd64'
+          - release_name: "linux-aarch64-musl"
+            arch: 'arm64'
     runs-on: ubuntu-latest
     needs: 
     - generate-release-notes
-    container:
-      image: ${{ matrix.image }}
     steps:
-      - name: Prepare environment
-        run: |
-          apk add git ${{ matrix.dependencies }}
-          git config --global --add safe.directory $GITHUB_WORKSPACE
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Build (Release)
-        run: cargo build --release --verbose
-        env:
-          RUSTFLAGS: '-C target-feature=-crt-static'
+      - name: Set up QEMU
+        if: matrix.arch != 'amd64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: ${{ matrix.arch }}
+      - name: Build in Docker
+        run: |
+          cat << EOF | docker run -i --rm -v ${{ github.workspace }}:/workspace -w /workspace --platform 'linux/${{ matrix.arch }}' rust:alpine sh -e
+            apk add --no-cache git musl-dev gtk+3.0-dev
+            export RUSTFLAGS='-C target-feature=-crt-static'
+            cargo build --release --verbose
+          EOF
       - name: Package
         run: |
           version=$(git describe --tags --dirty --always)
