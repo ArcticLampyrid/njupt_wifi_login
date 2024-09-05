@@ -76,6 +76,7 @@ jobs:
         release_name:
           - "linux-x86_64"
           - "linux-aarch64"
+          - "linux-riscv64"
         include:
           - release_name: "linux-x86_64"
             rust_target: "x86_64-unknown-linux-gnu"
@@ -87,6 +88,12 @@ jobs:
             pkgconf_arch: "aarch64-linux-gnu"
             dependencies: "crossbuild-essential-arm64 libgtk-3-dev:arm64"
             toolchain_name: "aarch64-linux-gnu"
+          - release_name: "linux-riscv64"
+            rust_target: "riscv64gc-unknown-linux-gnu"
+            dpkg_arch: "riscv64"
+            pkgconf_arch: "riscv64-linux-gnu"
+            dependencies: "crossbuild-essential-riscv64 libgtk-3-dev:riscv64"
+            toolchain_name: "riscv64-linux-gnu"
     runs-on: ubuntu-latest
     needs: 
     - generate-release-notes
@@ -112,7 +119,7 @@ jobs:
           echo "linker = \"${toolchain_name}-gcc\"" >> ~/.cargo/config
           echo "ar = \"${toolchain_name}-ar\"" >> ~/.cargo/config
         fi
-        if [ "$dpkg_arch" == "arm64" ]; then
+        if [ "$dpkg_arch" == "arm64" ] || [ "$dpkg_arch" == "riscv64" ]; then
           echo "deb [arch=$dpkg_arch] http://ports.ubuntu.com/ubuntu-ports $DISTRIB_CODENAME main restricted" | sudo tee -a /etc/apt/sources.list
           echo "deb [arch=$dpkg_arch] http://ports.ubuntu.com/ubuntu-ports $DISTRIB_CODENAME-updates main restricted" | sudo tee -a /etc/apt/sources.list
           echo "deb [arch=$dpkg_arch] http://ports.ubuntu.com/ubuntu-ports $DISTRIB_CODENAME universe" | sudo tee -a /etc/apt/sources.list
@@ -155,11 +162,17 @@ jobs:
         release_name:
           - "linux-x86_64-musl"
           - "linux-aarch64-musl"
+          - "linux-riscv64-musl"
         include:
           - release_name: "linux-x86_64-musl"
+            image: "rust:alpine"
             arch: 'amd64'
           - release_name: "linux-aarch64-musl"
+            image: "rust:alpine"
             arch: 'arm64'
+          - release_name: "linux-riscv64-musl"
+            image: "riscv64/alpine"
+            arch: 'riscv64'
     runs-on: ubuntu-latest
     needs: 
     - generate-release-notes
@@ -173,8 +186,12 @@ jobs:
           platforms: ${{ matrix.arch }}
       - name: Build in Docker
         run: |
-          cat << EOF | docker run -i --rm -v ${{ github.workspace }}:/workspace -w /workspace --platform 'linux/${{ matrix.arch }}' -e CARGO_TERM_COLOR=always rust:alpine sh -e
-            apk add --no-cache git musl-dev gtk+3.0-dev
+          cat << EOF | docker run -i --rm -v ${{ github.workspace }}:/workspace -w /workspace --platform 'linux/${{ matrix.arch }}' -e CARGO_TERM_COLOR=always ${{ matrix.image }} sh -e
+            apk add --no-cache ca-certificates git musl-dev gtk+3.0-dev
+            if ! command -v rustc > /dev/null; then
+              echo "No Rust toolchain found, installing..."
+              apk add --no-cache gcc rust cargo
+            fi
             export RUSTFLAGS='-C target-feature=-crt-static'
             cargo build --release --verbose
           EOF
