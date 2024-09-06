@@ -362,6 +362,7 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
                 return;
             }
             let password = password.unwrap();
+            let old_config = read_my_config().ok();
             let config = LoginConfig {
                 credential: Credential::new(data.userid.clone(), password, isp),
                 check_interval: data.check_interval.parse().unwrap_or(20 * 60),
@@ -370,6 +371,10 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
                 } else {
                     Some(data.interface.clone())
                 },
+                log_policy: old_config
+                    .as_ref()
+                    .map(|c| c.log_policy.clone())
+                    .unwrap_or_default(),
             };
             if let Err(e) = write_my_config(&config) {
                 data.message = fl!(

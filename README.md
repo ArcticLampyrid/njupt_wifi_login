@@ -35,13 +35,21 @@ It will listen for the network changed notifications and automatically do the au
    # The default value is 1200 seconds (20 minutes), 0 means no proactive checks.
    # It is recommended to enable proactive checks, 
    # for interface changing events may not be captured in some cases.
-   # check_interval: 1200
+   check_interval: 1200
 
    # Bind the request to a specific interface (e.g., eth0). 
    # Leave empty to not specify.
    # If you have multiple network interfaces or TUN/TAP devices, 
    # you may need to specify the interface.
-   # interface: eth0
+   interface: null
+
+   # Set the rolling log policy.
+   # When the log file exceeds the size limit, the file will be rotated, 
+   # and the oldest file will be deleted if the file count exceeds the limit.
+   # The rotated files will be named as `*.log.1`, `*.log.2`, etc.
+   log_policy:
+     size_limit: 3MiB
+     file_count: 2
    ```
 3. Config to run `njupt_wifi_login` at startup and it will automatically do the rest.
 

@@ -10,11 +10,17 @@ mod smart_bind_to_interface_ext;
 mod win32_network_connectivity_hint_changed;
 use app_events::DefaultAppEvents;
 use app_main::AppMain;
+use byte_unit::Byte;
 use clap::{Parser, Subcommand};
 use display_error_chain::ErrorChainExt;
 use log::*;
 use log4rs::{
-    append::file::FileAppender,
+    append::rolling_file::{
+        policy::compound::{
+            roll::fixed_window::FixedWindowRoller, trigger::size::SizeTrigger, CompoundPolicy,
+        },
+        RollingFileAppender,
+    },
     config::{Appender, Root},
     encode::pattern::PatternEncoder,
 };
@@ -69,10 +75,28 @@ fn read_my_config() -> Result<LoginConfig, Box<dyn std::error::Error + Sync + Se
     Ok(config)
 }
 
-fn init_log(log_level: LevelFilter) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
-    let file_log = FileAppender::builder()
+fn init_log(
+    log_level: LevelFilter,
+    config: &LoginConfig,
+) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
+    let mut rolling_pattern = LOG_PATH.to_string_lossy();
+    rolling_pattern += ".{}";
+    let file_policy = CompoundPolicy::new(
+        Box::new(SizeTrigger::new(
+            config
+                .log_policy
+                .size_limit
+                .unwrap_or(Byte::from_u64(3 * 1024 * 1024))
+                .as_u64(),
+        )),
+        Box::new(FixedWindowRoller::builder().base(1).build(
+            rolling_pattern.as_ref(),
+            config.log_policy.file_count.unwrap_or(2),
+        )?),
+    );
+    let file_log = RollingFileAppender::builder()
         .encoder(Box::<PatternEncoder>::default())
-        .build(LOG_PATH.as_path())?;
+        .build(LOG_PATH.as_path(), Box::new(file_policy))?;
 
     let log_config = log4rs::Config::builder()
         .appender(Appender::builder().build("file_log", Box::new(file_log)))
@@ -126,18 +150,24 @@ fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
     } else {
         LevelFilter::Info
     };
-    if let Err(error) = init_log(log_level) {
-        windows_error_dialog(&format!("Failed to init log: {}", error.as_ref().chain()));
-        return Err(error);
-    }
 
     let my_config = match read_my_config() {
         Ok(config) => config,
         Err(error) => {
-            error!("Failed to read config: {}", error.as_ref().chain());
+            windows_error_dialog(&format!(
+                "Failed to read config: {}",
+                error.as_ref().chain()
+            ));
+            eprintln!("Failed to read config.");
             return Err(error);
         }
     };
+
+    if let Err(error) = init_log(log_level, &my_config) {
+        windows_error_dialog(&format!("Failed to init log: {}", error.as_ref().chain()));
+        eprintln!("Failed to init log.");
+        return Err(error);
+    }
 
     let run: Result<(), Box<dyn std::error::Error + Sync + Send>> = match args.command {
         #[cfg(all(feature = "windows-service-mode", target_os = "windows"))]

@@ -4,6 +4,7 @@ name = "njupt_wifi_login_configuration"
 version = "0.4.5"
 
 [dependencies]
+byte-unit = {version = "5", features = ["serde"]}
 serde = {version = "1", features = ["derive"]}
 serde_with = {version = "3", features = ["base64"]}
 serde_yaml = "0.9"
