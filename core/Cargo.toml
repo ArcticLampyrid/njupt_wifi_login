@@ -13,7 +13,12 @@ chrono = "0.4"
 clap = {version = "4.5", features = ["derive"]}
 display-error-chain = "0.2"
 log = "0.4"
-log4rs = "1.3"
+log4rs = { version = "1.3", default-features = false, features = [
+  "rolling_file_appender",
+  "compound_policy",
+  "size_trigger",
+  "fixed_window_roller",
+] }
 network-interface = "2"
 njupt_wifi_login_configuration = {path = "../configuration"}
 once_cell = "1"
