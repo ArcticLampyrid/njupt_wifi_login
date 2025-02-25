@@ -25,24 +25,11 @@ use log4rs::{
     encode::pattern::PatternEncoder,
 };
 use njupt_wifi_login_configuration::login_config::LoginConfig;
-use once_cell::sync::Lazy;
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 mod windows_service_command;
 #[cfg(all(feature = "windows-service-mode", target_os = "windows"))]
 use windows_service_command::{handle_service_command, ServiceCommand};
-static CONFIG_PATH: Lazy<PathBuf> = Lazy::new(|| {
-    let mut path = env::current_exe().unwrap();
-    path.pop();
-    path.push("njupt_wifi.yml");
-    path
-});
-static LOG_PATH: Lazy<PathBuf> = Lazy::new(|| {
-    let mut path = env::current_exe().unwrap();
-    path.pop();
-    path.push("njupt_wifi.log");
-    path
-});
 
 #[derive(Debug)]
 pub enum ActionInfo {
@@ -55,8 +42,25 @@ struct Args {
     /// Provide more detailed log during execution.
     #[arg(short, long, default_value_t = false)]
     verbose: bool,
+    /// Set working directory
+    #[arg(short('D'), long("directory"))]
+    working_directory: Option<String>,
     #[command(subcommand)]
     command: Option<Command>,
+}
+
+impl Args {
+    pub fn path_of(&self, f: impl AsRef<Path>) -> std::io::Result<impl AsRef<Path>> {
+        let mut path = if let Some(working_directory) = self.working_directory.as_ref() {
+            PathBuf::from(working_directory)
+        } else {
+            let mut path = env::current_exe()?;
+            path.pop();
+            path
+        };
+        path.push(f);
+        Ok(path)
+    }
 }
 
 #[derive(Subcommand, Clone, Debug)]
@@ -69,18 +73,23 @@ pub enum Command {
     },
 }
 
-fn read_my_config() -> Result<LoginConfig, Box<dyn std::error::Error + Sync + Send>> {
-    let f = std::fs::File::open(CONFIG_PATH.as_path())?;
+fn read_my_config(args: &Args) -> Result<LoginConfig, Box<dyn std::error::Error + Sync + Send>> {
+    let f = std::fs::File::open(args.path_of("njupt_wifi.yml")?)?;
     let config: LoginConfig = serde_yaml::from_reader(f)?;
     Ok(config)
 }
 
 fn init_log(
-    log_level: LevelFilter,
+    args: &Args,
     config: &LoginConfig,
 ) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
-    let mut rolling_pattern = LOG_PATH.to_string_lossy();
-    rolling_pattern += ".{}";
+    let log_level = if args.verbose {
+        LevelFilter::Trace
+    } else {
+        LevelFilter::Info
+    };
+    let log_path = args.path_of("njupt_wifi.log")?;
+    let rolling_pattern = log_path.as_ref().to_string_lossy() + ".{}";
     let file_policy = CompoundPolicy::new(
         Box::new(SizeTrigger::new(
             config
@@ -96,7 +105,7 @@ fn init_log(
     );
     let file_log = RollingFileAppender::builder()
         .encoder(Box::<PatternEncoder>::default())
-        .build(LOG_PATH.as_path(), Box::new(file_policy))?;
+        .build(log_path, Box::new(file_policy))?;
 
     let log_config = log4rs::Config::builder()
         .appender(Appender::builder().build("file_log", Box::new(file_log)))
@@ -145,13 +154,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
         }
     };
 
-    let log_level = if args.verbose {
-        LevelFilter::Trace
-    } else {
-        LevelFilter::Info
-    };
-
-    let my_config = match read_my_config() {
+    let my_config = match read_my_config(&args) {
         Ok(config) => config,
         Err(error) => {
             windows_error_dialog(&format!(
@@ -163,7 +166,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
         }
     };
 
-    if let Err(error) = init_log(log_level, &my_config) {
+    if let Err(error) = init_log(&args, &my_config) {
         windows_error_dialog(&format!("Failed to init log: {}", error.as_ref().chain()));
         eprintln!("Failed to init log.");
         return Err(error);
