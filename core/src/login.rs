@@ -29,7 +29,12 @@ const URLS_CONNECTIVITY_CHECK_204: [&str; 3] = [
 ];
 const URL_AP_PORTAL: &str = "https://p.njupt.edu.cn/a79.htm";
 const AP_PORTAL_FALLBACK_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 10, 244, 11));
-const ERROR_MSG_OFF_HOURS: &str = "Authentication Fail ErrCode=16";
+const POSSIBLE_MSGS_OFF_HOURS: [&str; 2] = [
+    // Confirmed on 2023-07-24
+    "Authentication Fail ErrCode=16",
+    // Confirmed on 2025-02-26
+    "当前时间禁止上网",
+];
 
 static NJUPT_AUTHENTICATION_PATTERN: Lazy<regex::Regex> = Lazy::new(|| {
     Regex::new("Authentication is required\\. Click <a href=\"(.*?)\">here</a> to open the authentication page\\.").unwrap()
@@ -230,13 +235,12 @@ pub async fn send_login_request(
             let json_content = &content[("dr1003(").len()..(content.len() - ");".len())];
             match serde_json::from_str::<NJUPTAuthenticationResult>(json_content) {
                 Ok(result) => {
-                    if result.result == 1 {
-                        return Ok(());
-                    }
-                    if result.msg == ERROR_MSG_OFF_HOURS {
-                        return Err(WifiLoginError::OffHours());
+                    return if result.result == 1 {
+                        Ok(())
+                    } else if POSSIBLE_MSGS_OFF_HOURS.contains(&result.msg.as_str()) {
+                        Err(WifiLoginError::OffHours())
                     } else {
-                        return Err(WifiLoginError::ServerRejected(result.msg));
+                        Err(WifiLoginError::ServerRejected(result.msg))
                     }
                 }
                 Err(err) => {
