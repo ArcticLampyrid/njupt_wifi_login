@@ -45,21 +45,25 @@ struct Args {
     /// Set working directory
     #[arg(short('D'), long("directory"))]
     working_directory: Option<String>,
+    /// Set configuration file
+    #[arg(short, long, default_value = "njupt_wifi.yml")]
+    config: String,
+    /// Set log file
+    #[arg(long, default_value = "njupt_wifi.log")]
+    log_file: String,
     #[command(subcommand)]
     command: Option<Command>,
 }
 
 impl Args {
-    pub fn path_of(&self, f: impl AsRef<Path>) -> std::io::Result<impl AsRef<Path>> {
-        let mut path = if let Some(working_directory) = self.working_directory.as_ref() {
-            PathBuf::from(working_directory)
+    pub fn path_of(&self, f: impl AsRef<Path>) -> std::io::Result<PathBuf> {
+        if let Some(working_directory) = self.working_directory.as_ref() {
+            Ok(Path::new(working_directory).join(f))
         } else {
             let mut path = env::current_exe()?;
             path.pop();
-            path
-        };
-        path.push(f);
-        Ok(path)
+            Ok(path.join(f))
+        }
     }
 }
 
@@ -74,7 +78,8 @@ pub enum Command {
 }
 
 fn read_my_config(args: &Args) -> Result<LoginConfig, Box<dyn std::error::Error + Sync + Send>> {
-    let f = std::fs::File::open(args.path_of("njupt_wifi.yml")?)?;
+    let config_path = args.path_of(args.config.as_str())?;
+    let f = std::fs::File::open(config_path)?;
     let config: LoginConfig = serde_yaml::from_reader(f)?;
     Ok(config)
 }
@@ -88,8 +93,8 @@ fn init_log(
     } else {
         LevelFilter::Info
     };
-    let log_path = args.path_of("njupt_wifi.log")?;
-    let rolling_pattern = log_path.as_ref().to_string_lossy() + ".{}";
+    let log_path = args.path_of(args.config.as_str())?;
+    let rolling_pattern = log_path.as_path().to_string_lossy() + ".{}";
     let file_policy = CompoundPolicy::new(
         Box::new(SizeTrigger::new(
             config
