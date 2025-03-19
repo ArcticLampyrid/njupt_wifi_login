@@ -94,7 +94,7 @@ jobs:
             pkgconf_arch: "riscv64-linux-gnu"
             dependencies: "crossbuild-essential-riscv64 libgtk-3-dev:riscv64"
             toolchain_name: "riscv64-linux-gnu"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: 
     - generate-release-notes
     steps:
