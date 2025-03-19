@@ -18,7 +18,7 @@ use windows_service::{
     service_manager::{ServiceManager, ServiceManagerAccess},
 };
 
-use crate::{app_main::AppMain, app_service_events::AppServiceEvents};
+use crate::{app_main::AppMain, app_service_events::AppServiceEvents, PathArgs};
 
 struct ServiceGlobals {
     config: LoginConfig,
@@ -84,6 +84,7 @@ pub enum ServiceCommandError {
 
 pub fn handle_service_command(
     command: ServiceCommand,
+    path_args: PathArgs,
     my_config: LoginConfig,
 ) -> Result<(), ServiceCommandError> {
     let service_name = command
@@ -95,6 +96,23 @@ pub fn handle_service_command(
                 ServiceManagerAccess::CONNECT | ServiceManagerAccess::CREATE_SERVICE;
             let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)
                 .map_err(ServiceCommandError::ConnectToServiceManager)?;
+            let mut launch_arguments = Vec::<OsString>::new();
+            if let Some(working_directory) = path_args.working_directory.as_ref() {
+                launch_arguments.push(OsString::from("-D"));
+                launch_arguments.push(OsString::from(working_directory));
+            }
+            if path_args.config != "njupt_wifi.yml" {
+                launch_arguments.push(OsString::from("-c"));
+                launch_arguments.push(OsString::from(path_args.config));
+            }
+            if path_args.log_file != "njupt_wifi.log" {
+                launch_arguments.push(OsString::from("--log-file"));
+                launch_arguments.push(OsString::from(path_args.log_file));
+            }
+            launch_arguments.push(OsString::from("service"));
+            launch_arguments.push(OsString::from("--name"));
+            launch_arguments.push(OsString::from(service_name.as_str()));
+            launch_arguments.push(OsString::from("main"));
             let service_info = ServiceInfo {
                 name: OsString::from(service_name.as_str()),
                 display_name: format!("NJUPT WiFi Login Service ({})", service_name).into(),
@@ -102,12 +120,7 @@ pub fn handle_service_command(
                 start_type: ServiceStartType::AutoStart,
                 error_control: ServiceErrorControl::Normal,
                 executable_path: env::current_exe().map_err(ServiceCommandError::GetExePath)?,
-                launch_arguments: vec![
-                    OsString::from("service"),
-                    OsString::from("--name"),
-                    OsString::from(service_name.as_str()),
-                    OsString::from("main"),
-                ],
+                launch_arguments,
                 dependencies: vec![ServiceDependency::Service(OsString::from("nsi"))],
                 account_name: None,
                 account_password: None,

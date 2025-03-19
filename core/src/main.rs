@@ -42,6 +42,14 @@ struct Args {
     /// Provide more detailed log during execution.
     #[arg(short, long, default_value_t = false)]
     verbose: bool,
+    #[clap(flatten)]
+    path_args: PathArgs,
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(clap::Args, Clone, Debug)]
+struct PathArgs {
     /// Set working directory
     #[arg(short('D'), long("directory"))]
     working_directory: Option<String>,
@@ -51,13 +59,11 @@ struct Args {
     /// Set log file
     #[arg(long, default_value = "njupt_wifi.log")]
     log_file: String,
-    #[command(subcommand)]
-    command: Option<Command>,
 }
 
 impl Args {
     pub fn path_of(&self, f: impl AsRef<Path>) -> std::io::Result<PathBuf> {
-        if let Some(working_directory) = self.working_directory.as_ref() {
+        if let Some(working_directory) = self.path_args.working_directory.as_ref() {
             Ok(Path::new(working_directory).join(f))
         } else {
             let mut path = env::current_exe()?;
@@ -78,7 +84,7 @@ pub enum Command {
 }
 
 fn read_my_config(args: &Args) -> Result<LoginConfig, Box<dyn std::error::Error + Sync + Send>> {
-    let config_path = args.path_of(args.config.as_str())?;
+    let config_path = args.path_of(args.path_args.config.as_str())?;
     let f = std::fs::File::open(config_path)?;
     let config: LoginConfig = serde_yaml::from_reader(f)?;
     Ok(config)
@@ -93,7 +99,7 @@ fn init_log(
     } else {
         LevelFilter::Info
     };
-    let log_path = args.path_of(args.config.as_str())?;
+    let log_path = args.path_of(args.path_args.log_file.as_str())?;
     let rolling_pattern = log_path.as_path().to_string_lossy() + ".{}";
     let file_policy = CompoundPolicy::new(
         Box::new(SizeTrigger::new(
@@ -179,8 +185,8 @@ fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
 
     let run: Result<(), Box<dyn std::error::Error + Sync + Send>> = match args.command {
         #[cfg(all(feature = "windows-service-mode", target_os = "windows"))]
-        Some(Command::Service { args }) => {
-            handle_service_command(args, my_config).map_err(|e| e.into())
+        Some(Command::Service { args: service_args }) => {
+            handle_service_command(service_args, args.path_args, my_config).map_err(|e| e.into())
         }
         _ => {
             let app = AppMain::new(my_config);
