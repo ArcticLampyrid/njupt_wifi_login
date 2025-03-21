@@ -52,7 +52,7 @@ impl Win32ProtectedData {
             let result = result.assume_init();
             let result_bytes =
                 std::slice::from_raw_parts(result.pbData, result.cbData as usize).to_vec();
-            let _ = LocalFree(HLOCAL(result.pbData as *mut c_void));
+            let _ = LocalFree(Some(HLOCAL(result.pbData as *mut c_void)));
             Ok(Self { data: result_bytes })
         }
     }
@@ -75,7 +75,7 @@ impl Win32ProtectedData {
             let result = result.assume_init();
             let result_bytes =
                 std::slice::from_raw_parts(result.pbData, result.cbData as usize).to_owned();
-            let _ = LocalFree(HLOCAL(result.pbData as *mut c_void));
+            let _ = LocalFree(Some(HLOCAL(result.pbData as *mut c_void)));
             Ok(result_bytes)
         }
     }

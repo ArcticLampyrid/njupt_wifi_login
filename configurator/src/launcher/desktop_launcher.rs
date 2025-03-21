@@ -36,8 +36,8 @@ impl DesktopLauncher {
         F: FnOnce(&sysinfo::Process) -> R,
     {
         let system = System::new_with_specifics(
-            RefreshKind::new().with_processes(
-                ProcessRefreshKind::new()
+            RefreshKind::nothing().with_processes(
+                ProcessRefreshKind::nothing()
                     .with_exe(UpdateKind::Always)
                     .with_cmd(UpdateKind::Always),
             ),

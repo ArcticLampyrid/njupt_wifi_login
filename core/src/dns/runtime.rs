@@ -1,14 +1,17 @@
 use futures_util::Future;
-use hickory_proto::iocompat::AsyncIoTokioAsStd;
-use hickory_resolver::{name_server::RuntimeProvider, proto::TokioTime, TokioHandle};
+use hickory_proto::runtime::{
+    iocompat::AsyncIoTokioAsStd, RuntimeProvider, TokioHandle, TokioTime,
+};
 use network_interface::{NetworkInterface, NetworkInterfaceConfig};
 use std::{
     net::{IpAddr, SocketAddr},
     pin::Pin,
+    time::Duration,
 };
 use tokio::{
     io,
     net::{TcpSocket as TokioTcpSocket, TcpStream as TokioTcpStream, UdpSocket as TokioUdpSocket},
+    time::timeout,
 };
 
 #[derive(Clone)]
@@ -90,6 +93,8 @@ impl RuntimeProvider for BindableTokioRuntimeProvider {
     fn connect_tcp(
         &self,
         server_addr: SocketAddr,
+        bind_addr: Option<SocketAddr>,
+        wait_for: Option<Duration>,
     ) -> Pin<Box<dyn Send + Future<Output = io::Result<Self::Tcp>>>> {
         let interface = self.interface.clone();
         Box::pin(async move {
@@ -97,22 +102,42 @@ impl RuntimeProvider for BindableTokioRuntimeProvider {
                 SocketAddr::V4(_) => TokioTcpSocket::new_v4(),
                 SocketAddr::V6(_) => TokioTcpSocket::new_v6(),
             }?;
+
+            // Bind to the interface using the interface address as the source address
             if cfg!(not(any(
                 target_os = "android",
                 target_os = "fuchsia",
                 target_os = "linux"
             ))) {
                 if let Some(interface) = interface.as_ref() {
-                    let bind_addr = get_bind_addr(
+                    let interface_bind_addr = get_bind_addr(
                         interface,
                         AddressFamilyPreference::for_addr(server_addr.ip()),
                     )?;
-                    socket.bind(bind_addr)?;
+                    socket.bind(interface_bind_addr)?;
                 }
             }
+            // Bind to the interface using the interface name directly
+            // This is only supported on Android, Fuchsia, and Linux
             #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
             socket.bind_device(interface.as_ref().map(|iface| iface.as_bytes()))?;
-            socket.connect(server_addr).await.map(AsyncIoTokioAsStd)
+
+            // Bind to the specified address if provided
+            if let Some(bind_addr) = bind_addr {
+                socket.bind(bind_addr)?;
+            }
+
+            socket.set_nodelay(true)?;
+            let future = socket.connect(server_addr);
+            let wait_for = wait_for.unwrap_or(Duration::from_secs(5));
+            match timeout(wait_for, future).await {
+                Ok(Ok(socket)) => Ok(AsyncIoTokioAsStd(socket)),
+                Ok(Err(e)) => Err(e),
+                Err(_) => Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    format!("connection to {server_addr:?} timed out after {wait_for:?}"),
+                )),
+            }
         })
     }
 

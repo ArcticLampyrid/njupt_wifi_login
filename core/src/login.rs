@@ -2,8 +2,9 @@ use crate::{
     dns::resolver::CustomTrustDnsResolver, smart_bind_to_interface_ext::SmartBindToInterfaceExt,
 };
 use display_error_chain::ErrorChainExt;
+use hickory_proto::xfer::Protocol;
 use hickory_resolver::config::{
-    NameServerConfig, Protocol, ResolverConfig, ResolverOpts, ServerOrderingStrategy,
+    NameServerConfig, ResolverConfig, ResolverOpts, ServerOrderingStrategy,
 };
 use log::*;
 use njupt_wifi_login_configuration::{credential::Credential, password::PasswordError};
@@ -97,17 +98,19 @@ pub fn new_dns_resolver(interface: Option<String>) -> Arc<CustomTrustDnsResolver
 
     let mut opts = ResolverOpts::default();
     opts.server_ordering_strategy = ServerOrderingStrategy::QueryStatistics;
-    Arc::new(
-        CustomTrustDnsResolver::new(interface, config, opts, |name: &Name| -> Option<Addrs> {
+    Arc::new(CustomTrustDnsResolver::new(
+        interface,
+        config,
+        opts,
+        |name: &Name| -> Option<Addrs> {
             if name.as_str() == "p.njupt.edu.cn" {
                 return Some(Box::new(
                     vec![SocketAddr::new(AP_PORTAL_FALLBACK_IP, 0)].into_iter(),
                 ));
             }
             None
-        })
-        .unwrap(),
-    )
+        },
+    ))
 }
 
 pub fn random_url_for_connectivity_check_204() -> &'static str {

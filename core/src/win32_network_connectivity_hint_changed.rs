@@ -1,7 +1,7 @@
 #![cfg(target_os = "windows")]
 use std::{ffi::c_void, ptr};
 use windows::Win32::{
-    Foundation::{BOOLEAN, HANDLE},
+    Foundation::HANDLE,
     NetworkManagement::IpHelper::{CancelMibChangeNotify2, NotifyNetworkConnectivityHintChange},
     Networking::WinSock::NL_NETWORK_CONNECTIVITY_HINT,
 };
@@ -22,7 +22,7 @@ impl<'a> NetworkConnectivityHintChangedHandle<'a> {
             NotifyNetworkConnectivityHintChange(
                 Some(Self::callback::<F>),
                 Some(&*func as *const F as *const c_void),
-                BOOLEAN::from(initial_notification),
+                initial_notification,
                 ptr::addr_of_mut!(handle),
             )
             .ok()?;
