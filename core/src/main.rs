@@ -26,6 +26,8 @@ use log4rs::{
 };
 use njupt_wifi_login_configuration::login_config::LoginConfig;
 use std::env;
+#[allow(unused)]
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 mod windows_service_command;
 #[cfg(all(feature = "windows-service-mode", target_os = "windows"))]
@@ -44,6 +46,8 @@ struct Args {
     verbose: bool,
     #[clap(flatten)]
     path_args: PathArgs,
+    #[arg(short, long, default_value_t = false)]
+    detach: bool,
     #[command(subcommand)]
     command: Option<Command>,
 }
@@ -189,8 +193,54 @@ fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
             handle_service_command(service_args, args.path_args, my_config).map_err(|e| e.into())
         }
         _ => {
-            let app = AppMain::new(my_config);
-            app.run(DefaultAppEvents)
+            if args.detach {
+                #[cfg(target_os = "windows")]
+                {
+                    let mut launch_arguments = Vec::<OsString>::new();
+                    if let Some(working_directory) = args.path_args.working_directory.as_ref() {
+                        launch_arguments.push(OsString::from("-D"));
+                        launch_arguments.push(OsString::from(working_directory));
+                    }
+                    if args.path_args.config != "njupt_wifi.yml" {
+                        launch_arguments.push(OsString::from("-c"));
+                        launch_arguments.push(OsString::from(args.path_args.config));
+                    }
+                    if args.path_args.log_file != "njupt_wifi.log" {
+                        launch_arguments.push(OsString::from("--log-file"));
+                        launch_arguments.push(OsString::from(args.path_args.log_file));
+                    }
+                    if args.verbose {
+                        launch_arguments.push(OsString::from("-v"));
+                    }
+                    env::current_exe()
+                        .map_err(|e| e.into())
+                        .and_then(|exe| {
+                            std::process::Command::new(exe)
+                                .args(launch_arguments)
+                                .spawn()
+                                .map_err(|e| e.into())
+                        })
+                        .map(|_| ())
+                }
+                #[cfg(target_os = "linux")]
+                {
+                    daemonize_me::Daemon::new()
+                        .work_dir(".")
+                        .start()
+                        .map_err(|e| e.into())
+                        .and_then(|_| {
+                            let app = AppMain::new(my_config);
+                            app.run(DefaultAppEvents)
+                        })
+                }
+                #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+                {
+                    Err("Detach is not supported on this platform.".into())
+                }
+            } else {
+                let app = AppMain::new(my_config);
+                app.run(DefaultAppEvents)
+            }
         }
     };
     if let Err(error) = run {
