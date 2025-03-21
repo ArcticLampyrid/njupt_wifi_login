@@ -30,5 +30,7 @@ fn main() {
         format!("VERSION_PATCH={}", env!("CARGO_PKG_VERSION_PATCH")),
     ];
 
-    embed_resource::compile("win32_resource/app.rc", marcos);
+    embed_resource::compile("win32_resource/app.rc", marcos)
+        .manifest_required()
+        .unwrap()
 }
