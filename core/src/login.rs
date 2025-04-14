@@ -37,9 +37,10 @@ const POSSIBLE_MSGS_OFF_HOURS: [&str; 2] = [
     "当前时间禁止上网",
 ];
 
-static NJUPT_AUTHENTICATION_PATTERN: Lazy<regex::Regex> = Lazy::new(|| {
-    Regex::new("Authentication is required\\. Click <a href=\"(.*?)\">here</a> to open the authentication page\\.").unwrap()
-});
+static AUTHENTICATION_REDIRECT_JS_PATTERN: Lazy<regex::Regex> =
+    Lazy::new(|| Regex::new("location\\.href=\"(.*?)\"").unwrap());
+static NJUPT_AUTHENNTICATION_REDIRECT_URL_PATTERN: Lazy<regex::Regex> =
+    Lazy::new(|| Regex::new("https?:\\/\\/(?:10\\.10\\.244\\.11|p\\.njupt\\.edu\\.cn).*").unwrap());
 
 static AP_INFO_PATTERN: Lazy<regex::Regex> = Lazy::new(|| Regex::new("v46ip='(.*?)'").unwrap());
 
@@ -120,6 +121,20 @@ pub fn random_url_for_connectivity_check_204() -> &'static str {
     URLS_CONNECTIVITY_CHECK_204[index]
 }
 
+async fn handle_authentication_redirect_url(
+    client: &reqwest::Client,
+    location: &str,
+) -> Result<NetworkStatus, WifiLoginError> {
+    if NJUPT_AUTHENNTICATION_REDIRECT_URL_PATTERN.is_match(location) {
+        match get_ap_info(client.clone()).await {
+            Some(ap_info) => Ok(NetworkStatus::AuthenticationNJUPT(ap_info)),
+            None => Ok(NetworkStatus::AuthenticationUnknown),
+        }
+    } else {
+        Ok(NetworkStatus::AuthenticationUnknown)
+    }
+}
+
 pub async fn get_network_status(
     interface: Option<&str>,
     dns_resolver: Arc<impl Resolve + 'static>,
@@ -130,6 +145,7 @@ pub async fn get_network_status(
     // which is fragile and slow.
     let client_builder = reqwest::Client::builder()
         .optional_smart_bind_to_interface(interface)?
+        .redirect(Policy::none())
         .no_proxy()
         .timeout(Duration::from_secs(30))
         .dns_resolver(dns_resolver);
@@ -152,17 +168,25 @@ pub async fn get_network_status(
                 Ok(content) => content,
                 Err(_) => return Ok(NetworkStatus::Disconnected),
             };
-            if NJUPT_AUTHENTICATION_PATTERN.is_match(content.as_str()) {
-                match get_ap_info(client).await {
-                    Some(value) => Ok(NetworkStatus::AuthenticationNJUPT(value)),
-                    None => Ok(NetworkStatus::AuthenticationUnknown),
-                }
+            if AUTHENTICATION_REDIRECT_JS_PATTERN.is_match(content.as_str()) {
+                let location = match AUTHENTICATION_REDIRECT_JS_PATTERN.captures(content.as_str()) {
+                    Some(captures) => captures.get(1).map_or("", |m| m.as_str()),
+                    None => return Ok(NetworkStatus::AuthenticationUnknown),
+                };
+                handle_authentication_redirect_url(&client, location).await
             } else {
                 Ok(NetworkStatus::AuthenticationUnknown)
             }
         }
         reqwest::StatusCode::FOUND | reqwest::StatusCode::TEMPORARY_REDIRECT => {
-            Ok(NetworkStatus::AuthenticationUnknown)
+            match generate_204_page
+                .headers()
+                .get("Location")
+                .and_then(|h| h.to_str().ok())
+            {
+                Some(location) => handle_authentication_redirect_url(&client, location).await,
+                None => Ok(NetworkStatus::AuthenticationUnknown),
+            }
         }
         _ => Ok(NetworkStatus::Disconnected),
     }
