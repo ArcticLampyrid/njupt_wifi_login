@@ -3,4 +3,5 @@ rustflags = ["-C", "target-feature=+crt-static"]
 
 [profile.release]
 lto = "fat"
-strip = "debuginfo"
+opt-level = "z"
+strip = "symbols"
