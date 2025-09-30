@@ -13,7 +13,7 @@ chrono = "0.4"
 clap = {version = "4.5", features = ["derive"]}
 display-error-chain = "0.2"
 log = "0.4"
-log4rs = { version = "1.3", default-features = false, features = [
+log4rs = { version = "1.4", default-features = false, features = [
   "rolling_file_appender",
   "compound_policy",
   "size_trigger",
@@ -50,8 +50,8 @@ version = "0.61"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2"
-rtnetlink = "0.16"
+rtnetlink = "0.18"
 netlink-sys = "0.8"
-netlink-packet-core = "0.7"
-netlink-packet-route = "0.22"
+netlink-packet-core = "0.8"
+netlink-packet-route = "0.25"
 daemonize-me = "2.0.2"
