@@ -375,6 +375,10 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
                     .as_ref()
                     .map(|c| c.log_policy.clone())
                     .unwrap_or_default(),
+                security: old_config
+                    .as_ref()
+                    .map(|c| c.security.clone())
+                    .unwrap_or_default(),
             };
             if let Err(e) = write_my_config(&config) {
                 data.message = fl!(

@@ -7,7 +7,9 @@ use hickory_resolver::config::{
     NameServerConfig, ResolverConfig, ResolverOpts, ServerOrderingStrategy,
 };
 use log::*;
-use njupt_wifi_login_configuration::{credential::Credential, password::PasswordError};
+use njupt_wifi_login_configuration::{
+    credential::Credential, login_config::SecurityConfig, password::PasswordError,
+};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use reqwest::{
@@ -138,6 +140,7 @@ async fn handle_authentication_redirect_url(
 pub async fn get_network_status(
     interface: Option<&str>,
     dns_resolver: Arc<impl Resolve + 'static>,
+    security_config: &SecurityConfig,
 ) -> Result<NetworkStatus, WifiLoginError> {
     // Use public connectivity check page to determine network status,
     // which prevents exposing the school if not in the campus network.
@@ -148,7 +151,8 @@ pub async fn get_network_status(
         .redirect(Policy::none())
         .no_proxy()
         .timeout(Duration::from_secs(30))
-        .dns_resolver(dns_resolver);
+        .dns_resolver(dns_resolver)
+        .danger_accept_invalid_certs(security_config.danger_accept_invalid_certs);
     let client = client_builder.build()?;
     let generate_204_page = match client
         .get(random_url_for_connectivity_check_204())
@@ -224,6 +228,7 @@ async fn get_ap_info(client: reqwest::Client) -> Option<ApInfo> {
 pub async fn send_login_request(
     interface: Option<&str>,
     dns_resolver: Arc<impl Resolve + 'static>,
+    security_config: &SecurityConfig,
     credential: &Credential,
     ap_info: &ApInfo,
 ) -> Result<(), WifiLoginError> {
@@ -251,6 +256,7 @@ pub async fn send_login_request(
         .no_proxy()
         .timeout(Duration::from_secs(30))
         .dns_resolver(dns_resolver)
+        .danger_accept_invalid_certs(security_config.danger_accept_invalid_certs)
         .redirect(Policy::none())
         .build()?;
     let resp = client.get(url).query(&params).send().await?;

@@ -33,6 +33,9 @@ impl AppMain {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             {
+                if self.config.security.danger_accept_invalid_certs {
+                    warn!("Danger: Accepting invalid certificates");
+                }
                 let (tx, rx) = mpsc::unbounded_channel::<ActionInfo>();
                 let regular_check_handle = self.register_regular_check(tx.clone()).await?;
                 #[cfg(target_os = "windows")]
@@ -170,9 +173,12 @@ impl AppMain {
                     }
 
                     info!("Start to check network status");
-                    let network_status =
-                        get_network_status(self.config.interface.as_deref(), dns_resolver.clone())
-                            .await;
+                    let network_status = get_network_status(
+                        self.config.interface.as_deref(),
+                        dns_resolver.clone(),
+                        &self.config.security,
+                    )
+                    .await;
                     if network_status.is_err() {
                         error!(
                             "Failed to get network status: {}",
@@ -187,6 +193,7 @@ impl AppMain {
                         match send_login_request(
                             self.config.interface.as_deref(),
                             dns_resolver.clone(),
+                            &self.config.security,
                             &self.config.credential,
                             &ap_info,
                         )

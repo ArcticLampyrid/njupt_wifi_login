@@ -50,6 +50,13 @@ It will listen for the network changed notifications and automatically do the au
    log_policy:
      size_limit: 3MiB
      file_count: 2
+
+   # Security related settings
+   security:
+     # Whether to accept invalid certificates (e.g., self-signed certificates).
+     # It is NOT recommended to enable this option, 
+     # for it may expose your account information to attackers.
+     danger_accept_invalid_certs: false
    ```
 3. Config to run `njupt_wifi_login` at startup and it will automatically do the rest.
 
