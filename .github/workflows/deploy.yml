@@ -132,6 +132,8 @@ jobs:
           echo "ar = \"${toolchain_name}-ar\"" >> ~/.cargo/config
         fi
         if [ "$dpkg_arch" == "arm64" ] || [ "$dpkg_arch" == "riscv64" ]; then
+          native_arch="$(dpkg --print-architecture)"
+          sudo sed -Ei "/^deb /{/^deb \\[/! s|^deb |deb [arch=${native_arch}] |}" /etc/apt/sources.list
           echo "deb [arch=$dpkg_arch] http://ports.ubuntu.com/ubuntu-ports $DISTRIB_CODENAME main restricted" | sudo tee -a /etc/apt/sources.list
           echo "deb [arch=$dpkg_arch] http://ports.ubuntu.com/ubuntu-ports $DISTRIB_CODENAME-updates main restricted" | sudo tee -a /etc/apt/sources.list
           echo "deb [arch=$dpkg_arch] http://ports.ubuntu.com/ubuntu-ports $DISTRIB_CODENAME universe" | sudo tee -a /etc/apt/sources.list
@@ -143,8 +145,8 @@ jobs:
           echo "deb [arch=$dpkg_arch] http://ports.ubuntu.com/ubuntu-ports $DISTRIB_CODENAME-security universe" | sudo tee -a /etc/apt/sources.list
           echo "deb [arch=$dpkg_arch] http://ports.ubuntu.com/ubuntu-ports $DISTRIB_CODENAME-security multiverse" | sudo tee -a /etc/apt/sources.list
         fi
-        sudo apt-get update
         sudo dpkg --add-architecture $dpkg_arch
+        sudo apt-get update
         sudo apt-get install -y ${{ matrix.dependencies }}
     - name: Build (Release)
       run: cargo build --release --target ${{ matrix.rust_target }} --verbose
