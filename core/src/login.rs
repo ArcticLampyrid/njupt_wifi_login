@@ -11,6 +11,7 @@ use njupt_wifi_login_configuration::{
     credential::Credential, login_config::SecurityConfig, password::PasswordError,
 };
 use once_cell::sync::Lazy;
+use rand::RngExt;
 use regex::Regex;
 use reqwest::{
     dns::{Addrs, Name, Resolve},
@@ -235,6 +236,7 @@ pub async fn send_login_request(
     let url = "https://p.njupt.edu.cn:802/eportal/portal/login";
     let ddddd = format!(",0,{}", credential.derive_account());
     let upass = credential.password().get()?;
+    let random_v = rand::rng().random_range(500..=9999).to_string();
     let params = [
         ("callback", "dr1003"),
         ("login_method", "1"),
@@ -245,10 +247,15 @@ pub async fn send_login_request(
         ("wlan_user_mac", "000000000000"),
         ("wlan_ac_ip", ""),
         ("wlan_ac_name", ""),
-        ("sVersion", "4.1.3"),
+        ("authex_enable", ""),
+        ("jsVersion", "4.5"),
         ("terminal_type", "1"),
         ("lang", "zh-cn"),
-        ("v", "3335"),
+        ("enable_r3", "0"),
+        ("mac_type", "0"),
+        ("operate", "portal_login"),
+        ("business_type", "1"),
+        ("v", random_v.as_str()),
         ("lang", "zh"),
     ];
     let client = reqwest::Client::builder()

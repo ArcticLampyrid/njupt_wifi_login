@@ -35,6 +35,7 @@ hickory-proto = "0.25"
 hickory-resolver = "0.25"
 windows-service = { version = "0.8", optional = true }
 futures-util = "0.3"
+rand = "0.10"
 
 [build-dependencies]
 embed-resource = "3"
