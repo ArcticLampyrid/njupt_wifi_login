@@ -147,7 +147,8 @@ jobs:
         fi
         sudo dpkg --add-architecture $dpkg_arch
         sudo apt-get update
-        sudo apt-get install -y ${{ matrix.dependencies }}
+        sudo apt-get install -y aptitude
+        sudo aptitude -y install ${{ matrix.dependencies }}
     - name: Build (Release)
       run: cargo build --release --target ${{ matrix.rust_target }} --verbose
     - name: Compress with UPX
