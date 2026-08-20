@@ -143,8 +143,8 @@ jobs:
           echo "deb [arch=$dpkg_arch] http://ports.ubuntu.com/ubuntu-ports $DISTRIB_CODENAME-security universe" | sudo tee -a /etc/apt/sources.list
           echo "deb [arch=$dpkg_arch] http://ports.ubuntu.com/ubuntu-ports $DISTRIB_CODENAME-security multiverse" | sudo tee -a /etc/apt/sources.list
         fi
-        sudo apt-get update
         sudo dpkg --add-architecture $dpkg_arch
+        sudo apt-get update
         sudo apt-get install -y ${{ matrix.dependencies }}
     - name: Build (Release)
       run: cargo build --release --target ${{ matrix.rust_target }} --verbose
