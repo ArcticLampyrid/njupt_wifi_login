@@ -121,6 +121,7 @@ jobs:
         pkgconf_arch="${{ matrix.pkgconf_arch }}"
         toolchain_name="${{ matrix.toolchain_name }}"
         rust_target="${{ matrix.rust_target }}"
+        read -r -a dependencies <<< "${{ matrix.dependencies }}"
         if [ -n "$pkgconf_arch" ]; then
           echo "PKG_CONFIG_PATH=/usr/lib/$pkgconf_arch/pkgconfig:/usr/share/pkgconfig" >> $GITHUB_ENV
           echo "PKG_CONFIG_LIBDIR=/usr/lib/$pkgconf_arch" >> $GITHUB_ENV
@@ -146,8 +147,18 @@ jobs:
           echo "deb [arch=$dpkg_arch] http://ports.ubuntu.com/ubuntu-ports $DISTRIB_CODENAME-security multiverse" | sudo tee -a /etc/apt/sources.list
         fi
         sudo dpkg --add-architecture $dpkg_arch
-        sudo apt-get update
-        sudo apt-get install -y ${{ matrix.dependencies }}
+        sudo apt update
+        sudo apt install -y aptitude
+        aptitude_options=()
+        for package in "${dependencies[@]}"; do
+          aptitude_options+=(-o "Aptitude::ProblemResolver::Hints::=reject ${package%%:*} :UNINST")
+        done
+        sudo aptitude install -y --without-recommends \
+          -o "Aptitude::ProblemResolver::SolutionCost=removals, safety, priority" \
+          "${aptitude_options[@]}" "${dependencies[@]}"
+        for package in "${dependencies[@]}"; do
+          test "$(dpkg-query -W -f='${db:Status-Abbrev}' "$package")" = "ii "
+        done
     - name: Build (Release)
       run: cargo build --release --target ${{ matrix.rust_target }} --verbose
     - name: Compress with UPX
