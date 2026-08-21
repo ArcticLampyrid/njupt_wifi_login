@@ -77,6 +77,12 @@ jobs:
         draft: true
         omitBody: true
         artifacts: "release/*"
+    - name: Upload Artifact
+      if: github.event_name != 'push' || github.ref_type != 'tag'
+      uses: actions/upload-artifact@v4
+      with:
+        name: njupt_wifi_login-${{ matrix.release_name }}
+        path: release/*
   
   deploy-linux:
     strategy:
@@ -187,6 +193,12 @@ jobs:
         draft: true
         omitBody: true
         artifacts: "release/*"
+    - name: Upload Artifact
+      if: github.event_name != 'push' || github.ref_type != 'tag'
+      uses: actions/upload-artifact@v4
+      with:
+        name: njupt_wifi_login-${{ matrix.release_name }}
+        path: release/*
 
   deploy-linux-musl:
     strategy:
@@ -320,6 +332,12 @@ jobs:
           draft: true
           omitBody: true
           artifacts: "release/*"
+      - name: Upload Artifact
+        if: github.event_name != 'push' || github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: njupt_wifi_login-${{ matrix.release_name }}
+          path: release/*
 
   publish-release:
     if: github.event_name == 'push' && github.ref_type == 'tag'
