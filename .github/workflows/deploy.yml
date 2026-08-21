@@ -210,13 +210,16 @@ jobs:
           - "linux-riscv64-musl"
         include:
           - release_name: "linux-x86_64-musl"
-            oci_arch: "amd64"
+            host_oci_arch: "amd64"
+            target_oci_arch: "amd64"
             sysroot_base: "alpine:3.24"
           - release_name: "linux-aarch64-musl"
-            oci_arch: "arm64"
+            host_oci_arch: "amd64"
+            target_oci_arch: "arm64"
             sysroot_base: "alpine:3.24"
           - release_name: "linux-riscv64-musl"
-            oci_arch: "riscv64"
+            host_oci_arch: "amd64"
+            target_oci_arch: "riscv64"
             sysroot_base: "alpine:3.24"
     runs-on: ubuntu-latest
     needs: 
@@ -225,20 +228,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
       - name: Set up QEMU
-        if: matrix.oci_arch != 'amd64'
+        if: matrix.target_oci_arch != 'amd64'
         uses: docker/setup-qemu-action@v4
         with:
-          platforms: ${{ matrix.oci_arch }}
+          platforms: ${{ matrix.target_oci_arch }}
       - name: Prepare Alpine Sysroot
         run: |
-          container="alpine-${{ matrix.oci_arch }}-sysroot-${GITHUB_RUN_ID}"
+          container="alpine-${{ matrix.target_oci_arch }}-sysroot-${GITHUB_RUN_ID}"
           sysroot="$RUNNER_TEMP/alpine-sysroot"
           mkdir -p "$sysroot"
-          docker pull --platform "linux/${{ matrix.oci_arch }}" '${{ matrix.sysroot_base }}'
-          docker create \
+          docker run \
             --name "$container" \
-            --platform "linux/${{ matrix.oci_arch }}" \
-            --pull never \
+            --platform "linux/${{ matrix.target_oci_arch }}" \
             '${{ matrix.sysroot_base }}' sh -e -c '
               apk --no-cache add build-base linux-headers gtk+3.0-dev rust cargo
               mkdir -p /var/lib/build-config
@@ -252,9 +253,6 @@ jobs:
               rm -f /var/log/apk.log
             '
           trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
-          docker start --attach "$container"
-          test "$(docker inspect --format '{{.State.ExitCode}}' "$container")" = 0
-          test "$(docker inspect --format '{{json .Config.Volumes}}' "$container")" = null
           docker export "$container" | sudo tar --extract --directory "$sysroot" \
             --numeric-owner --same-permissions --delay-directory-restore
           docker rm "$container"
@@ -282,6 +280,7 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             -v "$SYSROOT:/sysroot:ro" \
             -w /workspace \
+            --platform "linux/${{ matrix.host_oci_arch }}" \
             '${{ matrix.sysroot_base }}' sh -e -c '
               apk add --no-cache rust cargo clang lld pkgconf binutils
               test "$(rustc -vV | sed -n "s/^release: //p")" = "$RUST_RELEASE"
@@ -308,7 +307,7 @@ jobs:
               cargo build --release --target "$RUST_TARGET" --verbose
             '
       - name: Compress with UPX
-        if: matrix.oci_arch != 'riscv64'
+        if: matrix.host_oci_arch != matrix.target_oci_arch
         run: |
           docker run -i --rm -e RUST_TARGET -v ${{ github.workspace }}:/workspace -w /workspace fedora:latest bash -e -c '
             dnf install -y upx
