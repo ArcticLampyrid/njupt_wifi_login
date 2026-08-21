@@ -16,12 +16,12 @@ permissions:
 
 jobs:
   generate-release-notes:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: latest
       - run: npx changelogithub ${{ github.event_name == 'push' && github.ref_type == 'tag' && '--draft' || '--dry'}}
@@ -46,7 +46,7 @@ jobs:
     needs: 
     - generate-release-notes
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - uses: dtolnay/rust-toolchain@stable
       with:
         targets: ${{ matrix.rust_target }}
@@ -110,7 +110,7 @@ jobs:
     needs: 
     - generate-release-notes
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - uses: dtolnay/rust-toolchain@stable
       with:
         targets: ${{ matrix.rust_target }}
@@ -164,8 +164,8 @@ jobs:
     - name: Compress with UPX
       if: matrix.upx == true
       run: |
-        cat << EOF | docker run -i --rm -v ${{ github.workspace }}:/workspace -w /workspace archlinux/archlinux:base bash -e
-          pacman -Syu --noconfirm upx
+        cat << EOF | docker run -i --rm -v ${{ github.workspace }}:/workspace -w /workspace fedora:latest bash -e
+          dnf install -y upx
           upx --best --lzma "target/${{ matrix.rust_target }}/release/njupt_wifi_login"
           upx --best --lzma "target/${{ matrix.rust_target }}/release/njupt_wifi_login_configurator"
         EOF
@@ -200,23 +200,26 @@ jobs:
           - release_name: "linux-x86_64-musl"
             image: "rust:alpine"
             arch: 'amd64'
+            runner: "ubuntu-latest"
             upx: true
           - release_name: "linux-aarch64-musl"
             image: "rust:alpine"
             arch: 'arm64'
+            runner: "ubuntu-24.04-arm"
             upx: true
           - release_name: "linux-riscv64-musl"
             image: "riscv64/alpine"
             arch: 'riscv64'
+            runner: "ubuntu-latest"
             upx: false
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     needs: 
     - generate-release-notes
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up QEMU
-        if: matrix.arch != 'amd64'
+        if: matrix.arch == 'riscv64'
         uses: docker/setup-qemu-action@v4
         with:
           platforms: ${{ matrix.arch }}
@@ -234,11 +237,11 @@ jobs:
       - name: Compress with UPX
         if: matrix.upx == true
         run: |
-          cat << EOF | docker run -i --rm -v ${{ github.workspace }}:/workspace -w /workspace archlinux/archlinux:base bash -e
-            pacman -Syu --noconfirm upx
+          docker run -i --rm -v ${{ github.workspace }}:/workspace -w /workspace fedora:latest bash -e -c '
+            dnf install -y upx
             upx --best --lzma target/release/njupt_wifi_login
             upx --best --lzma target/release/njupt_wifi_login_configurator
-          EOF
+          '
       - name: Package
         run: |
           version=$(git describe --tags --dirty --always)
@@ -259,7 +262,7 @@ jobs:
 
   publish-release:
     if: github.event_name == 'push' && github.ref_type == 'tag'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     needs:
     - deploy-win
     - deploy-linux
