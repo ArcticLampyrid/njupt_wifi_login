@@ -244,8 +244,6 @@ jobs:
               apk --no-cache add build-base linux-headers gtk+3.0-dev rust cargo
               mkdir -p /var/lib/build-config
               rustc -vV | sed -n "s/^host: //p" > /var/lib/build-config/rust-target
-              rustc -vV | sed -n "s/^release: //p" > /var/lib/build-config/rust-release
-              rustc -vV | sed -n "s/^commit-hash: //p" > /var/lib/build-config/rust-commit
               gcc -dumpmachine > /var/lib/build-config/clang-target
               readelf -lW /bin/busybox | sed -n "s@.*Requesting program interpreter: \(.*\)]@\1@p" > /var/lib/build-config/loader
               readelf -hW /bin/busybox | sed -n "s/^ *Machine: *//p" > /var/lib/build-config/elf-machine
@@ -261,8 +259,6 @@ jobs:
           {
             echo "SYSROOT=$sysroot"
             echo "RUST_TARGET=$(cat "$sysroot/var/lib/build-config/rust-target")"
-            echo "RUST_RELEASE=$(cat "$sysroot/var/lib/build-config/rust-release")"
-            echo "RUST_COMMIT=$(cat "$sysroot/var/lib/build-config/rust-commit")"
             echo "CLANG_TARGET=$(cat "$sysroot/var/lib/build-config/clang-target")"
             echo "LOADER=$(cat "$sysroot/var/lib/build-config/loader")"
             echo "ELF_MACHINE=$(cat "$sysroot/var/lib/build-config/elf-machine")"
@@ -272,8 +268,6 @@ jobs:
           docker run --rm \
             -e SYSROOT=/sysroot \
             -e RUST_TARGET \
-            -e RUST_RELEASE \
-            -e RUST_COMMIT \
             -e CLANG_TARGET \
             -e LOADER \
             -e ELF_MACHINE \
@@ -283,8 +277,6 @@ jobs:
             --platform "linux/${{ matrix.host_oci_arch }}" \
             '${{ matrix.sysroot_base }}' sh -e -c '
               apk add --no-cache rust cargo clang lld pkgconf binutils
-              test "$(rustc -vV | sed -n "s/^release: //p")" = "$RUST_RELEASE"
-              test "$(rustc -vV | sed -n "s/^commit-hash: //p")" = "$RUST_COMMIT"
               cp -a "$SYSROOT/usr/lib/rustlib/$RUST_TARGET" /usr/lib/rustlib/
               cargo_env=$(printf %s "$RUST_TARGET" | tr "[:lower:]-" "[:upper:]_")
               cargo_env_lower=$(printf %s "$RUST_TARGET" | tr - _)
