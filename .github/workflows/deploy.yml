@@ -198,57 +198,118 @@ jobs:
           - "linux-riscv64-musl"
         include:
           - release_name: "linux-x86_64-musl"
-            image: "rust:alpine"
-            arch: 'amd64'
-            runner: "ubuntu-latest"
-            upx: true
+            oci_arch: "amd64"
+            sysroot_base: "alpine:3.24"
           - release_name: "linux-aarch64-musl"
-            image: "rust:alpine"
-            arch: 'arm64'
-            runner: "ubuntu-24.04-arm"
-            upx: true
+            oci_arch: "arm64"
+            sysroot_base: "alpine:3.24"
           - release_name: "linux-riscv64-musl"
-            image: "riscv64/alpine"
-            arch: 'riscv64'
-            runner: "ubuntu-latest"
-            upx: false
-    runs-on: ${{ matrix.runner }}
+            oci_arch: "riscv64"
+            sysroot_base: "alpine:3.24"
+    runs-on: ubuntu-latest
     needs: 
     - generate-release-notes
     steps:
       - name: Checkout
         uses: actions/checkout@v7
       - name: Set up QEMU
-        if: matrix.arch == 'riscv64'
+        if: matrix.oci_arch != 'amd64'
         uses: docker/setup-qemu-action@v4
         with:
-          platforms: ${{ matrix.arch }}
-      - name: Build in Docker
+          platforms: ${{ matrix.oci_arch }}
+      - name: Prepare Alpine Sysroot
         run: |
-          cat << EOF | docker run -i --rm -v ${{ github.workspace }}:/workspace -w /workspace --platform 'linux/${{ matrix.arch }}' -e CARGO_TERM_COLOR=always ${{ matrix.image }} sh -e
-            apk add --no-cache ca-certificates git musl-dev gtk+3.0-dev
-            if ! command -v rustc > /dev/null; then
-              echo "No Rust toolchain found, installing..."
-              apk add --no-cache gcc rust cargo
-            fi
-            export RUSTFLAGS='-C target-feature=-crt-static'
-            cargo build --release --verbose
-          EOF
+          container="alpine-${{ matrix.oci_arch }}-sysroot-${GITHUB_RUN_ID}"
+          sysroot="$RUNNER_TEMP/alpine-sysroot"
+          mkdir -p "$sysroot"
+          docker pull --platform "linux/${{ matrix.oci_arch }}" '${{ matrix.sysroot_base }}'
+          docker create \
+            --name "$container" \
+            --platform "linux/${{ matrix.oci_arch }}" \
+            --pull never \
+            '${{ matrix.sysroot_base }}' sh -e -c '
+              apk --no-cache add build-base linux-headers gtk+3.0-dev rust cargo
+              mkdir -p /var/lib/build-config
+              rustc -vV | sed -n "s/^host: //p" > /var/lib/build-config/rust-target
+              rustc -vV | sed -n "s/^release: //p" > /var/lib/build-config/rust-release
+              rustc -vV | sed -n "s/^commit-hash: //p" > /var/lib/build-config/rust-commit
+              gcc -dumpmachine > /var/lib/build-config/clang-target
+              readelf -lW /bin/busybox | sed -n "s@.*Requesting program interpreter: \(.*\)]@\1@p" > /var/lib/build-config/loader
+              readelf -hW /bin/busybox | sed -n "s/^ *Machine: *//p" > /var/lib/build-config/elf-machine
+              rm -rf /var/cache/apk/* /tmp/* /var/tmp/*
+              rm -f /var/log/apk.log
+            '
+          trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
+          docker start --attach "$container"
+          test "$(docker inspect --format '{{.State.ExitCode}}' "$container")" = 0
+          test "$(docker inspect --format '{{json .Config.Volumes}}' "$container")" = null
+          docker export "$container" | sudo tar --extract --directory "$sysroot" \
+            --numeric-owner --same-permissions --delay-directory-restore
+          docker rm "$container"
+          trap - EXIT
+
+          {
+            echo "SYSROOT=$sysroot"
+            echo "RUST_TARGET=$(cat "$sysroot/var/lib/build-config/rust-target")"
+            echo "RUST_RELEASE=$(cat "$sysroot/var/lib/build-config/rust-release")"
+            echo "RUST_COMMIT=$(cat "$sysroot/var/lib/build-config/rust-commit")"
+            echo "CLANG_TARGET=$(cat "$sysroot/var/lib/build-config/clang-target")"
+            echo "LOADER=$(cat "$sysroot/var/lib/build-config/loader")"
+            echo "ELF_MACHINE=$(cat "$sysroot/var/lib/build-config/elf-machine")"
+          } >> "$GITHUB_ENV"
+      - name: Build (Release)
+        run: |
+          docker run --rm \
+            -e SYSROOT=/sysroot \
+            -e RUST_TARGET \
+            -e RUST_RELEASE \
+            -e RUST_COMMIT \
+            -e CLANG_TARGET \
+            -e LOADER \
+            -e ELF_MACHINE \
+            -v "${{ github.workspace }}:/workspace" \
+            -v "$SYSROOT:/sysroot:ro" \
+            -w /workspace \
+            '${{ matrix.sysroot_base }}' sh -e -c '
+              apk add --no-cache rust cargo clang lld pkgconf binutils
+              test "$(rustc -vV | sed -n "s/^release: //p")" = "$RUST_RELEASE"
+              test "$(rustc -vV | sed -n "s/^commit-hash: //p")" = "$RUST_COMMIT"
+              cp -a "$SYSROOT/usr/lib/rustlib/$RUST_TARGET" /usr/lib/rustlib/
+              cargo_env=$(printf %s "$RUST_TARGET" | tr "[:lower:]-" "[:upper:]_")
+              cargo_env_lower=$(printf %s "$RUST_TARGET" | tr - _)
+              export PKG_CONFIG_ALLOW_CROSS=1
+              export PKG_CONFIG_ALL_DYNAMIC=1
+              export PKG_CONFIG_SYSROOT_DIR="$SYSROOT"
+              export PKG_CONFIG_LIBDIR="$SYSROOT/usr/lib/pkgconfig:$SYSROOT/usr/share/pkgconfig:$SYSROOT/lib/pkgconfig"
+              unset PKG_CONFIG_ALL_STATIC PKG_CONFIG_PATH
+              export "PKG_CONFIG_SYSROOT_DIR_$cargo_env_lower=$SYSROOT"
+              export "PKG_CONFIG_LIBDIR_$cargo_env_lower=$PKG_CONFIG_LIBDIR"
+              export "PKG_CONFIG_PATH_$cargo_env_lower="
+              export "CC_$cargo_env_lower=clang"
+              export "CXX_$cargo_env_lower=clang++"
+              export "AR_$cargo_env_lower=ar"
+              export "CFLAGS_$cargo_env_lower=--target=$CLANG_TARGET --sysroot=$SYSROOT --gcc-toolchain=$SYSROOT/usr"
+              export "CXXFLAGS_$cargo_env_lower=--target=$CLANG_TARGET --sysroot=$SYSROOT --gcc-toolchain=$SYSROOT/usr"
+              export "CARGO_TARGET_${cargo_env}_LINKER=clang"
+              rustflags="-C target-feature=-crt-static -C link-arg=--target=$CLANG_TARGET -C link-arg=--sysroot=$SYSROOT -C link-arg=--gcc-toolchain=$SYSROOT/usr -C link-arg=-fuse-ld=lld -C link-arg=-Wl,-dynamic-linker,$LOADER -C link-arg=-Wl,-rpath-link,$SYSROOT/lib -C link-arg=-Wl,-rpath-link,$SYSROOT/usr/lib"
+              export "CARGO_TARGET_${cargo_env}_RUSTFLAGS=$rustflags"
+              cargo build --release --target "$RUST_TARGET" --verbose
+            '
       - name: Compress with UPX
-        if: matrix.upx == true
+        if: matrix.oci_arch != 'riscv64'
         run: |
-          docker run -i --rm -v ${{ github.workspace }}:/workspace -w /workspace fedora:latest bash -e -c '
+          docker run -i --rm -e RUST_TARGET -v ${{ github.workspace }}:/workspace -w /workspace fedora:latest bash -e -c '
             dnf install -y upx
-            upx --best --lzma target/release/njupt_wifi_login
-            upx --best --lzma target/release/njupt_wifi_login_configurator
+            upx --best --lzma target/$RUST_TARGET/release/njupt_wifi_login
+            upx --best --lzma target/$RUST_TARGET/release/njupt_wifi_login_configurator
           '
       - name: Package
         run: |
           version=$(git describe --tags --dirty --always)
           unpacked_dir=unpacked/njupt_wifi_login
           mkdir -p $unpacked_dir
-          cp target/release/njupt_wifi_login $unpacked_dir
-          cp target/release/njupt_wifi_login_configurator $unpacked_dir
+          cp target/$RUST_TARGET/release/njupt_wifi_login $unpacked_dir
+          cp target/$RUST_TARGET/release/njupt_wifi_login_configurator $unpacked_dir
           mkdir -p release
           tar -czf release/njupt_wifi_login-${version}-${{ matrix.release_name }}.tar.gz -C unpacked .
       - name: Release (GitHub)
