@@ -32,7 +32,8 @@ It will listen for the network changed notifications and automatically do the au
    password: "password123456"
 
    # Specifies the time interval for proactive checks.
-   # The default value is 1200 seconds (20 minutes), 0 means no proactive checks.
+   # The default value is 1200 seconds (20 minutes), 0 means no periodic proactive checks
+   # (but still proactive checks triggered by adaptive off-hours policy).
    # It is recommended to enable proactive checks, 
    # for interface changing events may not be captured in some cases.
    # WARN: if you set a lower value, please enable login_failure_backoff feature

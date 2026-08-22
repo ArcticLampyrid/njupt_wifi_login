@@ -276,7 +276,8 @@ impl AppMain {
             if let Some(last_check_at) = last_check_at {
                 if check_at.duration_since(last_check_at) < Duration::from_secs(5) {
                     next_proactive_deadline = Some(last_check_at + Duration::from_secs(5));
-                    // Reset the off-hours cache
+                    // It's by design that we always do the actual check without cache when triggered by network change.
+                    // So let's reset the off-hours cache here.
                     // If the original check was triggered by timer, there should be no effect.
                     //     (off-hours-cache is already considered when scheduling the next proactive check)
                     // If the original check was triggered by network change, it's expected to reset the off-hours cache
