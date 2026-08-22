@@ -269,27 +269,32 @@ pub async fn send_login_request(
     let resp = client.get(url).query(&params).send().await?;
     if resp.status() == reqwest::StatusCode::OK {
         let content = resp.text().await?;
-        if content.len() <= ("dr1003();".len()) {
-            error!("Failed to parse authentication result: {}", content);
-        } else {
-            let json_content = &content[("dr1003(").len()..(content.len() - ");".len())];
-            match serde_json::from_str::<NJUPTAuthenticationResult>(json_content) {
-                Ok(result) => {
-                    return if result.result == 1 {
-                        Ok(())
-                    } else if POSSIBLE_MSGS_OFF_HOURS.contains(&result.msg.as_str()) {
-                        Err(WifiLoginError::OffHours())
-                    } else {
-                        Err(WifiLoginError::ServerRejected(result.msg))
-                    }
+        let json_content = {
+            let trimmed = content
+                .trim_start()
+                .trim_end_matches(|c| char::is_whitespace(c) || c == ';');
+            if trimmed.starts_with("dr1003(") && trimmed.ends_with(")") {
+                &trimmed[("dr1003(".len())..(trimmed.len() - ")".len())]
+            } else {
+                trimmed
+            }
+        };
+        match serde_json::from_str::<NJUPTAuthenticationResult>(json_content) {
+            Ok(result) => {
+                return if result.result == 1 {
+                    Ok(())
+                } else if POSSIBLE_MSGS_OFF_HOURS.contains(&result.msg.as_str()) {
+                    Err(WifiLoginError::OffHours())
+                } else {
+                    Err(WifiLoginError::ServerRejected(result.msg))
                 }
-                Err(err) => {
-                    error!(
-                        "Failed to parse authentication result: {}, error: {}",
-                        content,
-                        err.chain()
-                    );
-                }
+            }
+            Err(err) => {
+                error!(
+                    "Failed to parse authentication result: {}, error: {}",
+                    content,
+                    err.chain()
+                );
             }
         }
     }
