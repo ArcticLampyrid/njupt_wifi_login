@@ -14,6 +14,38 @@ pub struct LoginConfig {
     pub log_policy: LogFileConfig,
     #[serde(default)]
     pub security: SecurityConfig,
+    #[serde(default)]
+    pub login_failure_backoff: LoginFailureBackoffConfig,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LoginFailureBackoffConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "LoginFailureBackoffConfig::default_max_interval")]
+    pub max_interval: u64,
+    #[serde(default = "LoginFailureBackoffConfig::default_jitter_percent")]
+    pub jitter_percent: u64,
+}
+
+impl Default for LoginFailureBackoffConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            max_interval: Self::default_max_interval(),
+            jitter_percent: Self::default_jitter_percent(),
+        }
+    }
+}
+
+impl LoginFailureBackoffConfig {
+    const fn default_max_interval() -> u64 {
+        3600
+    }
+
+    const fn default_jitter_percent() -> u64 {
+        50
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]

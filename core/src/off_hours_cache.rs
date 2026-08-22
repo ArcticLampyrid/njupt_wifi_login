@@ -37,4 +37,20 @@ impl OffHoursCache {
         }
         std::time::Duration::ZERO
     }
+
+    pub async fn wait_until_expiration(&self) {
+        // Why:
+        // If just sleeping using the expiration duration, then
+        // on platforms where monotonic time does not advance during suspend,
+        // sleeping from midnight until the expected morning expiration
+        // and resuming at 07:00 can leave most of that sleep outstanding.
+        let hung_intervals = std::time::Duration::from_mins(1);
+        loop {
+            let expiration = self.expiration();
+            if expiration.is_zero() {
+                break;
+            }
+            tokio::time::sleep(expiration.min(hung_intervals)).await;
+        }
+    }
 }
