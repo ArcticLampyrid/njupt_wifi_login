@@ -36,6 +36,6 @@ tips-check-interval = Tips: In addition to monitoring network changes, the progr
 login-failure-backoff-enabled = Login-failure backoff
 login-failure-backoff-max-interval = Backoff Maximum (s)
 login-failure-backoff-jitter-percent = Backoff Jitter (%)
-tips-login-failure-backoff = Tips: Disabled by default. After consecutive portal login failures, proactive checks use exponential backoff up to 3600 seconds with randomized jitter. The maximum interval is measured in seconds and jitter controls the randomized lower bound. Network-change notifications still trigger immediate checks.
+tips-login-failure-backoff = Tips: Disabled by default. After consecutive portal login failures, proactive checks use exponential backoff up to the configured maximum interval (3600 seconds by default) with randomized jitter. The maximum interval is measured in seconds and jitter controls the randomized lower bound. Network-change notifications still trigger immediate checks.
 interface = Interface
 tips-interface = Tips: Bind the request to a specific interface (e.g., eth0). Leave empty to not specify.

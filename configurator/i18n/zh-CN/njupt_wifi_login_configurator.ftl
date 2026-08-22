@@ -36,6 +36,6 @@ tips-check-interval = 提示：除了监听网络变动以外，程序还会定�
 login-failure-backoff-enabled = 登录失败退避
 login-failure-backoff-max-interval = 退避最大间隔（秒）
 login-failure-backoff-jitter-percent = 退避抖动（%）
-tips-login-failure-backoff = 提示：默认禁用。连续登录门户失败后，主动检测将使用指数退避，最大间隔为 3600 秒，并加入随机抖动。最大间隔以秒为单位，抖动控制随机延迟的下限。网络变动通知仍会立即触发检测。
+tips-login-failure-backoff = 提示：默认禁用。连续登录门户失败后，主动检测将使用指数退避，直到配置的最大间隔（默认为 3600 秒），并加入随机抖动。最大间隔以秒为单位，抖动控制随机延迟的下限。网络变动通知仍会立即触发检测。
 interface = 接口
 tips-interface = 提示：将请求包绑定到特定的接口上（如 eth0）上。留空表示不指定。
