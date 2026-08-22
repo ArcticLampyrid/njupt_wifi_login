@@ -79,10 +79,11 @@ fn normalize_proactive_check_config(config: &LoginConfig) -> ProactiveCheckConfi
 
 fn next_failure_count(current: u32, outcome: CheckOutcome) -> u32 {
     match outcome {
-        CheckOutcome::NetworkStatusError | CheckOutcome::LoginFailed => current.saturating_add(1),
+        CheckOutcome::LoginFailed => current.saturating_add(1),
         CheckOutcome::Connected
         | CheckOutcome::Disconnected
         | CheckOutcome::AuthenticationUnknown
+        | CheckOutcome::NetworkStatusError
         | CheckOutcome::LoginSucceeded
         | CheckOutcome::LoginOffHours => 0,
     }
