@@ -238,14 +238,27 @@ impl AppMain {
                     Err(mpsc::error::TryRecvError::Empty) => {}
                     Err(mpsc::error::TryRecvError::Disconnected) => {}
                 }
-
+                match self.off_hours_cache.expiration() {
+                    // If the off-hours cache has expired, we just ignore it.
+                    off_hours_expiration if off_hours_expiration.is_zero() => {}
+                    // If there is valid off-hours cache, wait for either a new action or the expiration of the off-hours cache.
+                    off_hours_expiration => {
+                        info!(
+                            "Waiting for next action or off-hours cache expiration (after {} seconds)",
+                            off_hours_expiration.as_secs()
+                        );
+                        let waiter = self.off_hours_cache.wait_until_expiration();
+                        tokio::pin!(waiter);
+                        tokio::select! {
+                            Some(action) = rx.recv(), if !rx.is_closed() => {
+                                break action;
+                            }
+                            _ = &mut waiter => break ActionInfo::ProactiveCheck(),
+                        }
+                    }
+                }
                 let now = Instant::now();
-                let off_hours_deadline = {
-                    let expiration = self.off_hours_cache.expiration();
-                    (!expiration.is_zero()).then_some(now + expiration)
-                };
-                let timer_deadline = off_hours_deadline.or(next_proactive_deadline);
-                match timer_deadline {
+                match next_proactive_deadline {
                     // If the deadline is already passed, we should do a proactive check immediately.
                     Some(deadline) if deadline <= now => break ActionInfo::ProactiveCheck(),
                     // If there is a deadline in the future, wait for either a new action or the deadline.
@@ -258,10 +271,8 @@ impl AppMain {
                             tokio::time::sleep_until(tokio::time::Instant::from_std(deadline));
                         tokio::pin!(proactive_timer);
                         tokio::select! {
-                            action = rx.recv(), if !rx.is_closed() => {
-                                if let Some(action) = action {
-                                    break action;
-                                }
+                            Some(action) = rx.recv(), if !rx.is_closed() => {
+                                break action;
                             }
                             _ = &mut proactive_timer => break ActionInfo::ProactiveCheck(),
                         }
@@ -275,7 +286,7 @@ impl AppMain {
                     None => {
                         warn!("No more actions and no proactive check timer, waiting indefinitely");
                         std::future::pending::<()>().await
-                    },
+                    }
                 }
             };
 
