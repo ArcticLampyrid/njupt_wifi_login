@@ -4,7 +4,7 @@ use std::{
     process::Command,
 };
 
-use auto_launch::{AutoLaunch, AutoLaunchBuilder};
+use auto_launch::{AutoLaunch, AutoLaunchBuilder, MacOSLaunchMode};
 use njupt_wifi_login_configuration::password::PasswordScope;
 use sysinfo::{ProcessRefreshKind, RefreshKind, Signal, System, UpdateKind};
 
@@ -23,7 +23,7 @@ impl DesktopLauncher {
         let auto_launch = AutoLaunchBuilder::new()
             .set_app_name("njupt_wifi_login")
             .set_app_path(core_path.to_string_lossy().as_ref())
-            .set_use_launch_agent(true)
+            .set_macos_launch_mode(MacOSLaunchMode::LaunchAgent)
             .build()?;
         Ok(Self {
             core_path,

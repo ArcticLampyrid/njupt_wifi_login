@@ -1,7 +1,6 @@
 #![cfg(not(target_os = "windows"))]
-use chacha20poly1305::aead::generic_array::GenericArray;
-use chacha20poly1305::aead::{Aead, Payload};
-use chacha20poly1305::{aead::OsRng, AeadCore, ChaCha20Poly1305, KeyInit};
+use chacha20poly1305::aead::{Aead, Generate, Payload};
+use chacha20poly1305::{ChaCha20Poly1305, KeyInit, Nonce};
 use hex::{FromHex, ToHex};
 use machine_uid::machine_id::get_machine_id;
 use serde::{Deserialize, Serialize};
@@ -31,8 +30,13 @@ impl LocalMachineDataProtection {
                 })?
                 .into_bytes(),
         );
-        let cipher = ChaCha20Poly1305::new(GenericArray::from_slice(machine_id.as_ref()));
-        let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
+        let cipher = ChaCha20Poly1305::new(
+            machine_id
+                .as_slice()
+                .try_into()
+                .map_err(|_| LocalMachineDataProtectionError::AeadError)?,
+        );
+        let nonce = Nonce::generate();
         let ciphertext = cipher
             .encrypt(&nonce, s)
             .map_err(|_| LocalMachineDataProtectionError::AeadError)?;
@@ -50,10 +54,18 @@ impl LocalMachineDataProtection {
                 })?
                 .into_bytes(),
         );
-        let cipher = ChaCha20Poly1305::new(GenericArray::from_slice(machine_id.as_ref()));
+        let cipher = ChaCha20Poly1305::new(
+            machine_id
+                .as_slice()
+                .try_into()
+                .map_err(|_| LocalMachineDataProtectionError::AeadError)?,
+        );
         cipher
             .decrypt(
-                GenericArray::from_slice(&self.nonce),
+                self.nonce
+                    .as_slice()
+                    .try_into()
+                    .map_err(|_| LocalMachineDataProtectionError::AeadError)?,
                 Payload::from(self.secret.as_ref()),
             )
             .map_err(|_| LocalMachineDataProtectionError::AeadError)

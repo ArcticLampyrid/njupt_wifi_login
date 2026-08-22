@@ -1,7 +1,7 @@
 [package]
 edition = "2021"
 name = "njupt_wifi_login_configuration"
-version = "0.7.1"
+version = "0.7.2"
 
 [dependencies]
 byte-unit = {version = "5", features = ["serde"]}
@@ -19,7 +19,7 @@ features = [
 version = "0.61"
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
-machine-uid = "0.5"
-chacha20poly1305 = "0.10"
-sha2 = "0.10"
+machine-uid = "0.6"
+chacha20poly1305 = "0.11"
+sha2 = "0.11"
 hex = "0.4"
