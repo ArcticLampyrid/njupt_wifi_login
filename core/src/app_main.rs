@@ -231,44 +231,52 @@ impl AppMain {
         loop {
             // Firstly try to receive an action without blocking,
             // if there is no action, then wait for either a new action or the next proactive check deadline.
-            // When channel is closed, return Ok(()) to exit the loop.
-            let action = match rx.try_recv() {
-                Ok(action) => action,
-                Err(mpsc::error::TryRecvError::Empty) => {
-                    let now = Instant::now();
-                    let off_hours_deadline = {
-                        let expiration = self.off_hours_cache.expiration();
-                        (!expiration.is_zero()).then_some(now + expiration)
-                    };
-                    let timer_deadline = off_hours_deadline.or(next_proactive_deadline);
-                    match timer_deadline {
-                        // If the deadline is already passed, we should do a proactive check immediately.
-                        Some(deadline) if deadline <= now => ActionInfo::ProactiveCheck(),
-                        // If there is a deadline in the future, wait for either a new action or the deadline.
-                        Some(deadline) => {
-                            info!(
-                                "Waiting for next action or proactive check timer (after {:?})",
-                                deadline.duration_since(now)
-                            );
-                            let proactive_timer =
-                                tokio::time::sleep_until(tokio::time::Instant::from_std(deadline));
-                            tokio::pin!(proactive_timer);
-                            tokio::select! {
-                                action = rx.recv() => match action {
-                                    Some(action) => action,
-                                    None => return Ok(()),
-                                },
-                                _ = &mut proactive_timer => ActionInfo::ProactiveCheck(),
-                            }
-                        }
-                        // If there is no deadline, wait for a new action indefinitely.
-                        None => match rx.recv().await {
-                            Some(action) => action,
-                            None => return Ok(()),
-                        },
-                    }
+            // When the channel is closed, continue scheduling proactive checks using the timer.
+            let action = loop {
+                match rx.try_recv() {
+                    Ok(action) => break action,
+                    Err(mpsc::error::TryRecvError::Empty) => {}
+                    Err(mpsc::error::TryRecvError::Disconnected) => {}
                 }
-                Err(mpsc::error::TryRecvError::Disconnected) => return Ok(()),
+
+                let now = Instant::now();
+                let off_hours_deadline = {
+                    let expiration = self.off_hours_cache.expiration();
+                    (!expiration.is_zero()).then_some(now + expiration)
+                };
+                let timer_deadline = off_hours_deadline.or(next_proactive_deadline);
+                match timer_deadline {
+                    // If the deadline is already passed, we should do a proactive check immediately.
+                    Some(deadline) if deadline <= now => break ActionInfo::ProactiveCheck(),
+                    // If there is a deadline in the future, wait for either a new action or the deadline.
+                    Some(deadline) => {
+                        info!(
+                            "Waiting for next action or proactive check timer (after {:?})",
+                            deadline.duration_since(now)
+                        );
+                        let proactive_timer =
+                            tokio::time::sleep_until(tokio::time::Instant::from_std(deadline));
+                        tokio::pin!(proactive_timer);
+                        tokio::select! {
+                            action = rx.recv(), if !rx.is_closed() => {
+                                if let Some(action) = action {
+                                    break action;
+                                }
+                            }
+                            _ = &mut proactive_timer => break ActionInfo::ProactiveCheck(),
+                        }
+                    }
+                    // If there is no deadline, wait for a new action indefinitely.
+                    None if !rx.is_closed() => {
+                        if let Some(action) = rx.recv().await {
+                            break action;
+                        }
+                    }
+                    None => {
+                        warn!("No more actions and no proactive check timer, waiting indefinitely");
+                        std::future::pending::<()>().await
+                    },
+                }
             };
 
             // Debouncing, make a minimum interval of 5 seconds between checks
