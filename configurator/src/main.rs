@@ -13,7 +13,7 @@ use include_bytes_zstd::include_bytes_zstd;
 use launcher::Launcher;
 use njupt_wifi_login_configuration::{
     credential::{Credential, IspType},
-    login_config::LoginConfig,
+    login_config::{LoginConfig, LoginFailureBackoffConfig},
     password::{Password, PasswordScope},
 };
 use once_cell::sync::Lazy;
@@ -67,6 +67,9 @@ struct ConfiguratorState {
     running: bool,
     check_interval: String,
     interface: String,
+    login_failure_backoff_enabled: bool,
+    login_failure_backoff_max_interval: String,
+    login_failure_backoff_jitter_percent: String,
 }
 
 fn read_my_config() -> Result<LoginConfig, Box<dyn Error>> {
@@ -90,11 +93,14 @@ fn main() {
         text.font_family("MiSans").unwrap_or(FontFamily::SYSTEM_UI)
     }))
     .title(WINDOW_TITLE)
-    .with_min_size((550.0, 460.0))
-    .window_size((550.0, 460.0));
+    .with_min_size((550.0, 560.0))
+    .window_size((550.0, 560.0));
 
     // create the initial app state
     let mut initial_state = ConfiguratorState::default();
+    let default_backoff = LoginFailureBackoffConfig::default();
+    initial_state.login_failure_backoff_max_interval = default_backoff.max_interval.to_string();
+    initial_state.login_failure_backoff_jitter_percent = default_backoff.jitter_percent.to_string();
 
     if let Ok(config) = read_my_config() {
         let isp_state = match config.credential.isp() {
@@ -111,6 +117,11 @@ fn main() {
         }
         initial_state.check_interval = config.check_interval.to_string();
         initial_state.interface = config.interface.unwrap_or_default();
+        initial_state.login_failure_backoff_enabled = config.login_failure_backoff.enabled;
+        initial_state.login_failure_backoff_max_interval =
+            config.login_failure_backoff.max_interval.to_string();
+        initial_state.login_failure_backoff_jitter_percent =
+            config.login_failure_backoff.jitter_percent.to_string();
     }
     initial_state.enabled = false;
     initial_state.running = false;
@@ -230,6 +241,47 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
         .with_default_spacer()
         .with_flex_child(
             check_interval_text_box,
+            FlexParams::new(1.0, CrossAxisAlignment::End),
+        );
+
+    let login_failure_backoff_checkbox = Checkbox::new(fl!("login-failure-backoff-enabled"))
+        .lens(ConfiguratorState::login_failure_backoff_enabled)
+        .align_left();
+
+    let login_failure_backoff_max_interval_label =
+        Label::new(fl!("login-failure-backoff-max-interval"));
+    let login_failure_backoff_max_interval_tips_button =
+        Button::new("?").on_click(|_ctx, data: &mut ConfiguratorState, _env| {
+            data.message = fl!("tips-login-failure-backoff");
+        });
+    let login_failure_backoff_max_interval_text_box = TextBox::new()
+        .expand_width()
+        .lens(ConfiguratorState::login_failure_backoff_max_interval);
+    let login_failure_backoff_max_interval_flex = Flex::row()
+        .with_child(
+            Flex::row()
+                .with_child(login_failure_backoff_max_interval_label)
+                .with_default_spacer()
+                .with_child(login_failure_backoff_max_interval_tips_button)
+                .align_left()
+                .fix_width(180.0),
+        )
+        .with_default_spacer()
+        .with_flex_child(
+            login_failure_backoff_max_interval_text_box,
+            FlexParams::new(1.0, CrossAxisAlignment::End),
+        );
+
+    let login_failure_backoff_jitter_percent_label =
+        Label::new(fl!("login-failure-backoff-jitter-percent"));
+    let login_failure_backoff_jitter_percent_text_box = TextBox::new()
+        .expand_width()
+        .lens(ConfiguratorState::login_failure_backoff_jitter_percent);
+    let login_failure_backoff_jitter_percent_flex = Flex::row()
+        .with_child(login_failure_backoff_jitter_percent_label.fix_width(180.0))
+        .with_default_spacer()
+        .with_flex_child(
+            login_failure_backoff_jitter_percent_text_box,
             FlexParams::new(1.0, CrossAxisAlignment::End),
         );
 
@@ -379,6 +431,17 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
                     .as_ref()
                     .map(|c| c.security.clone())
                     .unwrap_or_default(),
+                login_failure_backoff: LoginFailureBackoffConfig {
+                    enabled: data.login_failure_backoff_enabled,
+                    max_interval: data
+                        .login_failure_backoff_max_interval
+                        .parse()
+                        .unwrap_or_else(|_| LoginFailureBackoffConfig::default().max_interval),
+                    jitter_percent: data
+                        .login_failure_backoff_jitter_percent
+                        .parse()
+                        .unwrap_or_else(|_| LoginFailureBackoffConfig::default().jitter_percent),
+                },
             };
             if let Err(e) = write_my_config(&config) {
                 data.message = fl!(
@@ -439,6 +502,12 @@ fn build_root_widget() -> impl Widget<ConfiguratorState> {
         .with_child(password_scope_flex)
         .with_default_spacer()
         .with_child(check_interval_flex)
+        .with_default_spacer()
+        .with_child(login_failure_backoff_checkbox)
+        .with_default_spacer()
+        .with_child(login_failure_backoff_max_interval_flex)
+        .with_default_spacer()
+        .with_child(login_failure_backoff_jitter_percent_flex)
         .with_default_spacer()
         .with_child(launcher_flex)
         .with_default_spacer()

@@ -35,7 +35,22 @@ It will listen for the network changed notifications and automatically do the au
    # The default value is 1200 seconds (20 minutes), 0 means no proactive checks.
    # It is recommended to enable proactive checks, 
    # for interface changing events may not be captured in some cases.
+   # WARN: if you set a lower value, please enable login_failure_backoff feature
+   # to reduce the pressure on the portal server.
    check_interval: 1200
+
+   # Exponentially delay proactive checks after consecutive portal login failures.
+   # Network-change notifications still trigger immediate checks.
+   # The delay is calculated as:
+   #     base = check_interval
+   #     cap = max(base, max_interval)
+   #     upper = min(base * 2^failures, cap)
+   #     lower = max(base, upper * (100 - jitter) / 100)
+   #     delay = random value in lower..=upper
+   login_failure_backoff:
+     enabled: false
+     max_interval: 3600
+     jitter_percent: 50
 
    # Bind the request to a specific interface (e.g., eth0). 
    # Leave empty to not specify.
